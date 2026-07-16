@@ -56,6 +56,43 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Repack AppImage with anylinux.so fix
+        run: |
+          cd src-tauri/target/release/bundle/appimage/
+          
+          # Setup tools
+          sudo apt-get install -y gcc
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          wget -q https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/main/useful-tools/lib/anylinux.c
+          
+          for APP in *.AppImage; do
+            echo "Patching $APP..."
+            
+            # Extract
+            chmod +x "$APP"
+            ./"$APP" --appimage-extract
+            
+            # Compile anylinux.so directly into the bundle
+            gcc -shared -fPIC anylinux.c -ldl -o squashfs-root/usr/lib/anylinux.so
+            
+            # Wrap AppRun
+            mv squashfs-root/AppRun squashfs-root/AppRun.orig
+            cat << 'EOF' > squashfs-root/AppRun
+          #!/bin/bash
+          export LD_PRELOAD="$APPDIR/usr/lib/anylinux.so"
+          exec "$APPDIR/AppRun.orig" "$@"
+          EOF
+            chmod +x squashfs-root/AppRun
+            
+            # Repack
+            ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run squashfs-root "patched-$APP"
+            
+            # Replace original with patched version
+            mv "patched-$APP" "$APP"
+            rm -rf squashfs-root
+          done
+
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
