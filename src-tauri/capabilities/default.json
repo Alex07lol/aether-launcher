@@ -1,0 +1,10 @@
+{
+  "identifier": "main-capability",
+  "description": "Default permissions for the Aether Launcher main window",
+  "windows": ["*"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:app:default"
+  ]
+}

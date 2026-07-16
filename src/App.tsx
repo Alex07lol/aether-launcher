@@ -1,0 +1,626 @@
+import React, { useEffect, useState, useRef } from 'react';
+import { useLauncherStore } from './services/state/useLauncherStore';
+import downloaderService from './services/downloader/downloaderService';
+import versionManager from './services/versions/versionManager';
+import authService from './services/auth/authService';
+import settingsService from './services/settings/settingsService';
+import TitleBar from './components/TitleBar';
+import GlassCard from './components/GlassCard';
+import Button from './components/Button';
+import Input from './components/Input';
+import Checkbox from './components/Checkbox';
+import VersionSelector from './components/VersionSelector';
+import LaunchButton from './components/LaunchButton';
+import ModManager from './components/ModManager';
+import ForgeInstaller from './components/ForgeInstaller';
+import { UserIcon } from './components/Icons';
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import './App.css';
+
+// Detect if running inside Tauri environment
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+const translations = {
+  en: {
+    selectVersion: 'Select Version',
+    microsoftLogin: 'Microsoft Login',
+    offlineLogin: 'Offline Login',
+    switchAccount: 'Switch Account',
+    deleteAccount: 'Delete Account',
+    rememberLogin: 'Remember Login',
+    installPlay: 'INSTALL & PLAY',
+    launchGame: 'LAUNCH MINECRAFT',
+    gameRunning: 'GAME RUNNING...',
+    retryDownload: 'RETRY DOWNLOAD',
+    repair: 'Repair Installation',
+    clearCache: 'Clear Cache',
+    maxMemory: 'Max Memory Allocation',
+    jvmArgs: 'JVM Launch Arguments',
+    javaPath: 'Java Executable Path',
+    theme: 'UI Theme Mode',
+    language: 'System Language',
+    launchForge: 'Launch Forge Modded',
+    displayLogs: 'Display Output Logs',
+    verifying: 'Verifying SHA-256 Signature...',
+    connecting: 'Connecting...',
+    settingUp: 'Setting up client folders...',
+    onlineMode: 'Microsoft Online Mode',
+    offlineMode: 'Offline Mode Active'
+  },
+  es: {
+    selectVersion: 'Seleccionar Versión',
+    microsoftLogin: 'Iniciar con Microsoft',
+    offlineLogin: 'Inicio sin Conexión',
+    switchAccount: 'Cambiar Cuenta',
+    deleteAccount: 'Eliminar Cuenta',
+    rememberLogin: 'Recordar Sesión',
+    installPlay: 'INSTALAR Y JUGAR',
+    launchGame: 'INICIAR MINECRAFT',
+    gameRunning: 'JUEGO EN EJECUCIÓN...',
+    retryDownload: 'REINTENTAR DESCARGA',
+    repair: 'Reparar Instalación',
+    clearCache: 'Limpiar Caché',
+    maxMemory: 'Memoria RAM Máxima',
+    jvmArgs: 'Argumentos de JVM',
+    javaPath: 'Ruta del Ejecutable Java',
+    theme: 'Tema de la Interfaz',
+    language: 'Idioma del Sistema',
+    launchForge: 'Iniciar con Forge',
+    displayLogs: 'Mostrar Registro de Consola',
+    verifying: 'Verificando firma SHA-256...',
+    connecting: 'Conectando...',
+    settingUp: 'Configurando directorios...',
+    onlineMode: 'Modo Microsoft en Línea',
+    offlineMode: 'Modo sin Conexión Activo'
+  },
+  de: {
+    selectVersion: 'Version Auswählen',
+    microsoftLogin: 'Microsoft Anmeldung',
+    offlineLogin: 'Offline Anmeldung',
+    switchAccount: 'Konto Wechseln',
+    deleteAccount: 'Konto Löschen',
+    rememberLogin: 'Anmeldung Speichern',
+    installPlay: 'INSTALLIEREN & SPIELEN',
+    launchGame: 'MINECRAFT STARTEN',
+    gameRunning: 'SPIEL LÄUFT...',
+    retryDownload: 'DOWNLOAD WIEDERHOLEN',
+    repair: 'Installation Reparieren',
+    clearCache: 'Cache Leeren',
+    maxMemory: 'Maximale Speicherzuweisung',
+    jvmArgs: 'JVM Startargumente',
+    javaPath: 'Java Ausführungspfad',
+    theme: 'UI-Thema Modus',
+    language: 'Systemsprache',
+    launchForge: 'Forge Modded Starten',
+    displayLogs: 'Ausgabeprotokoll Anzeigen',
+    verifying: 'SHA-256 Signatur Überprüfen...',
+    connecting: 'Verbinden...',
+    settingUp: 'Client-Ordner Einrichten...',
+    onlineMode: 'Microsoft Online-Modus',
+    offlineMode: 'Offline-Modus Aktiv'
+  }
+};
+
+export const App: React.FC = () => {
+  const { 
+    currentUser, 
+    selectedVersion, 
+    setSelectedVersion, 
+    downloadStatus,
+    settings
+  } = useLauncherStore();
+
+  const currentLang = settings.language || 'en';
+  const t = (key: keyof typeof translations['en']) => {
+    return translations[currentLang][key] || translations['en'][key];
+  };
+
+  const [offlineName, setOfflineName] = useState('');
+  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  // settings and logs states
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [customJvmArgs, setCustomJvmArgs] = useState('-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20');
+  const [launchForge, setLaunchForge] = useState(false);
+  const [gameLogs, setGameLogs] = useState<string[]>([]);
+  const [isGameRunning, setIsGameRunning] = useState(false);
+  const [showLogsConsole, setShowLogsConsole] = useState(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    versionManager.fetchVersions();
+    settingsService.loadSettings();
+
+    // Load remembered user on mount
+    const savedUser = localStorage.getItem('aether_remembered_user');
+    if (savedUser) {
+      try {
+        const profile = JSON.parse(savedUser);
+        if (profile.userType === 'microsoft') {
+          // Attempt Microsoft token refresh securely via Rust backend
+          authService.loginRefresh()
+            .then(refreshedProfile => {
+              useLauncherStore.getState().setCurrentUser(refreshedProfile);
+              localStorage.setItem('aether_remembered_user', JSON.stringify(refreshedProfile));
+            })
+            .catch(err => {
+              console.warn('[Auth] Failed to auto-refresh Microsoft credentials:', err);
+              // Clean up state if token is expired/invalid
+              localStorage.removeItem('aether_remembered_user');
+              authService.logout();
+            });
+        } else {
+          // Offline mode
+          useLauncherStore.getState().setCurrentUser(profile);
+        }
+      } catch (e) {
+        console.error('Failed to parse saved user:', e);
+      }
+    }
+
+    if (isTauri) {
+      const unlistenLog = listen<string>('game-log', (event) => {
+        setGameLogs((prev) => [...prev.slice(-250), event.payload]);
+      });
+      const unlistenExit = listen<number>('game-exit', (event) => {
+        setIsGameRunning(false);
+        setGameLogs((prev) => [...prev, `[Launcher] Process exited with status code: ${event.payload}`]);
+      });
+
+      return () => {
+        unlistenLog.then(fn => fn());
+        unlistenExit.then(fn => fn());
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [gameLogs]);
+
+  const handleLaunchOrInstall = async () => {
+    if (!currentUser) {
+      handleOfflineLoginSubmit(new Event('submit') as any);
+      return;
+    }
+    
+    if (downloadStatus.status === 'completed') {
+      setIsGameRunning(true);
+      setShowLogsConsole(true);
+      setGameLogs(['[Launcher] Preparing JVM sandbox and folders...']);
+
+      try {
+        const minecraftDir = settings.minecraftDir || '/home/aether/.minecraft';
+        const maxMemory = settings.maxMemory || 4096;
+        
+        console.log(`[Launcher] Launching Minecraft: version=${selectedVersion}, RAM=${maxMemory}MB, Forge=${launchForge}`);
+        
+        await invoke('launch_game', {
+          versionId: selectedVersion,
+          minecraftDir,
+          maxMemory,
+          customArgs: customJvmArgs,
+          isForge: launchForge,
+          username: currentUser.username,
+          uuid: currentUser.uuid,
+          accessToken: currentUser.accessToken,
+        });
+      } catch (err: any) {
+        console.error('Launch failed:', err);
+        setIsGameRunning(false);
+        setGameLogs((prev) => [...prev, `[Launcher] Launch Error: ${err}`]);
+      }
+    } else {
+      if (selectedVersion) {
+        downloaderService.startDownload(selectedVersion);
+      }
+    }
+  };
+
+  const handleCancelDownload = () => {
+    if (selectedVersion) {
+      downloaderService.cancelDownload(selectedVersion);
+    }
+  };
+
+  const handleRepairInstallation = () => {
+    if (selectedVersion) {
+      downloaderService.repairInstallation(selectedVersion);
+    }
+  };
+
+  const handleClearCache = async () => {
+    const confirmClear = window.confirm(
+      settings.language === 'es'
+        ? '¿Estás seguro de que deseas limpiar la caché? Esto eliminará todos los archivos del juego.'
+        : settings.language === 'de'
+        ? 'Sind Sie sicher, dass Sie den Cache leeren möchten? Dadurch werden alle Spieldateien gelöscht.'
+        : 'Are you sure you want to clear the cache? This will delete all downloaded game files.'
+    );
+    if (!confirmClear) return;
+
+    try {
+      const minecraftDir = settings.minecraftDir || '/home/aether/.minecraft';
+      if (isTauri) {
+        await invoke('clear_minecraft_cache', { baseDir: minecraftDir });
+      }
+      
+      // Clear localStorage
+      localStorage.removeItem('aether_launcher_settings');
+      localStorage.removeItem('aether_remembered_user');
+
+      // Logout user
+      await authService.logout();
+
+      // Reset settings to defaults
+      await settingsService.loadSettings();
+
+      alert(
+        settings.language === 'es'
+          ? '¡Caché limpiada con éxito!'
+          : settings.language === 'de'
+          ? 'Cache erfolgreich geleert!'
+          : 'Cache cleared successfully!'
+      );
+    } catch (e) {
+      console.error('Clear cache failed:', e);
+    }
+  };
+
+  const handleOfflineLoginSubmit = async (e: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const finalName = offlineName.trim() || 'AetherPlayer';
+    const profile = await authService.loginOffline(finalName);
+    if (rememberLogin) {
+      localStorage.setItem('aether_remembered_user', JSON.stringify(profile));
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    setAuthError(null);
+    setIsAuthenticating(true);
+    try {
+      const profile = await authService.loginMicrosoft();
+      if (rememberLogin) {
+        localStorage.setItem('aether_remembered_user', JSON.stringify(profile));
+      }
+    } catch (e: any) {
+      setAuthError(e?.message || 'Microsoft login failed. Please try again.');
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleLogout = () => {
+    authService.logout();
+    setOfflineName('');
+  };
+
+  const handleDeleteAccount = () => {
+    authService.logout();
+    setOfflineName('');
+    localStorage.removeItem('aether_remembered_user');
+  };
+
+  const toggleSettings = () => {
+    setIsSettingsOpen(!isSettingsOpen);
+  };
+
+  return (
+    <div className={`app-container ${settings.theme || 'blue-glass'}`}>
+      {/* Background container layout with blur, overlay and radial gradient */}
+      <div className="aether-bg-container">
+        <img src="/background.png" className="aether-bg-img" alt="Background" />
+        <div className="aether-bg-overlay" />
+        <div className="aether-bg-radial" />
+      </div>
+
+      {/* Draggable Title bar */}
+      <TitleBar onSettingsClick={toggleSettings} />
+
+      {/* Main Glass Panel */}
+      <GlassCard className="launcher-main-card">
+        
+        {/* Logo Section */}
+        <div className="launcher-logo-section">
+          <img src="/logo.png" alt="Aether Logo" className="launcher-logo-img" />
+          <h1 className="launcher-logo-title">AETHER</h1>
+          <p className="launcher-logo-subtitle">NEXT-GENERATION GAMING ENVIRONMENT</p>
+        </div>
+
+        {/* Dynamic Authentication Section */}
+        <div className="launcher-auth-section">
+          {currentUser ? (
+            <div className="user-profile-card">
+              <div className="user-profile-header">
+                <div className="user-avatar">
+                  {currentUser.username.substring(0, 2).toUpperCase()}
+                </div>
+                <div className="user-details">
+                  <span className="user-name">{currentUser.username}</span>
+                  <span className="user-status-text">
+                    {currentUser.userType === 'microsoft' ? t('onlineMode') : t('offlineMode')}
+                  </span>
+                </div>
+              </div>
+              <div className="user-controls-row">
+                <Button variant="secondary" onClick={handleLogout}>
+                  {t('switchAccount')}
+                </Button>
+                <Button variant="danger" onClick={handleDeleteAccount}>
+                  {t('deleteAccount')}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="auth-login-flow">
+              {/* Microsoft Login Button */}
+              <Button
+                variant="microsoft"
+                onClick={handleMicrosoftLogin}
+                className="ms-login-btn"
+                disabled={isAuthenticating}
+              >
+                {isAuthenticating ? 'Opening browser...' : 'Microsoft Login'}
+              </Button>
+
+              {/* Auth error feedback */}
+              {authError && (
+                <div className="auth-error-msg">
+                  <span>⚠ {authError}</span>
+                  <button onClick={() => setAuthError(null)} className="auth-error-dismiss" type="button">✕</button>
+                </div>
+              )}
+
+              {isAuthenticating && (
+                <p className="auth-loading-hint">A browser window has opened. Complete login there...</p>
+              )}
+
+              {/* OR Divider */}
+              <div className="auth-divider">
+                <span>OR</span>
+              </div>
+
+              {/* Offline Username Row */}
+              <form onSubmit={handleOfflineLoginSubmit} className="offline-login-row">
+                <Input
+                  type="text"
+                  placeholder={currentLang === 'es' ? 'Nombre de usuario' : currentLang === 'de' ? 'Benutzername' : 'Enter Username'}
+                  value={offlineName}
+                  onChange={e => setOfflineName(e.target.value)}
+                  maxLength={16}
+                  icon={<UserIcon size={14} />}
+                />
+                <Button 
+                  type="submit" 
+                  variant="secondary" 
+                  disabled={!offlineName.trim()}
+                  className="offline-submit-btn"
+                >
+                  {t('offlineLogin')}
+                </Button>
+              </form>
+
+              {/* Remember Login Checkbox */}
+              <div className="remember-checkbox-wrapper">
+                <Checkbox
+                  label={t('rememberLogin')}
+                  checked={rememberLogin}
+                  onChange={e => setRememberLogin(e.target.checked)}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Version Selector Section */}
+        <div className="launcher-version-section">
+          <VersionSelector
+            selectedVersion={selectedVersion || '1.8.9'}
+            isSelectorOpen={isSelectorOpen}
+            onTriggerClick={() => setIsSelectorOpen(!isSelectorOpen)}
+            onVersionSelect={(ver) => {
+              setSelectedVersion(ver);
+              setIsSelectorOpen(false);
+            }}
+            disabled={isGameRunning}
+          />
+        </div>
+
+        {/* Forge Installer - collapsible */}
+        <div className="launcher-addon-section">
+          <ForgeInstaller />
+        </div>
+
+        {/* Mod Manager - drag-and-drop, collapsible */}
+        <div className="launcher-addon-section">
+          <ModManager />
+        </div>
+
+        {/* Settings Drawer Panel */}
+        {isSettingsOpen && (
+          <div className="launcher-settings-drawer">
+            {/* Memory Slider */}
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-label">{t('maxMemory')}</span>
+                <span className="settings-value">{(settings.maxMemory / 1024).toFixed(1)} GB</span>
+              </div>
+              <input 
+                type="range" 
+                min={1024} 
+                max={8192} 
+                step={512}
+                value={settings.maxMemory || 4096}
+                onChange={(e) => {
+                  settingsService.saveSettings({
+                    ...settings,
+                    maxMemory: parseInt(e.target.value, 10),
+                  });
+                }}
+                className="memory-slider"
+              />
+            </div>
+
+            {/* Java Path */}
+            <div className="settings-field">
+              <span className="settings-label">{t('javaPath')}</span>
+              <input 
+                type="text" 
+                value={settings.javaPath || ''}
+                onChange={(e) => {
+                  settingsService.saveSettings({
+                    ...settings,
+                    javaPath: e.target.value,
+                  });
+                }}
+                className="jvm-args-input"
+                placeholder="Detected Automatically"
+              />
+            </div>
+
+            {/* Theme Selector */}
+            <div className="settings-field">
+              <span className="settings-label">{t('theme')}</span>
+              <select
+                value={settings.theme || 'blue-glass'}
+                onChange={(e) => {
+                  settingsService.saveSettings({
+                    ...settings,
+                    theme: e.target.value as any,
+                  });
+                }}
+                className="settings-select-dropdown"
+              >
+                <option value="blue-glass">Blue Glass</option>
+                <option value="carbon-black">Carbon Black</option>
+                <option value="nebula-purple">Nebula Purple</option>
+              </select>
+            </div>
+
+            {/* Language Selector */}
+            <div className="settings-field">
+              <span className="settings-label">{t('language')}</span>
+              <select
+                value={settings.language || 'en'}
+                onChange={(e) => {
+                  settingsService.saveSettings({
+                    ...settings,
+                    language: e.target.value as any,
+                  });
+                }}
+                className="settings-select-dropdown"
+              >
+                <option value="en">English</option>
+                <option value="es">Español</option>
+                <option value="de">Deutsch</option>
+              </select>
+            </div>
+
+            {/* JVM arguments */}
+            <div className="settings-field">
+              <span className="settings-label">{t('jvmArgs')}</span>
+              <input 
+                type="text" 
+                value={customJvmArgs}
+                onChange={e => setCustomJvmArgs(e.target.value)}
+                className="jvm-args-input"
+                placeholder="Custom Java launch parameters"
+              />
+            </div>
+
+            <div className="settings-options-row">
+              <label className="checkbox-option">
+                <input 
+                  type="checkbox" 
+                  checked={launchForge}
+                  onChange={e => setLaunchForge(e.target.checked)}
+                  className="option-checkbox"
+                />
+                <span>{t('launchForge')}</span>
+              </label>
+
+              <label className="checkbox-option">
+                <input 
+                  type="checkbox" 
+                  checked={showLogsConsole}
+                  onChange={e => setShowLogsConsole(e.target.checked)}
+                  className="option-checkbox"
+                />
+                <span>{t('displayLogs')}</span>
+              </label>
+            </div>
+
+            {/* Repair & Clear Cache Buttons */}
+            <div className="settings-actions-grid">
+              <button
+                onClick={handleRepairInstallation}
+                className="settings-action-btn repair"
+                type="button"
+              >
+                {t('repair')}
+              </button>
+              <button
+                onClick={handleClearCache}
+                className="settings-action-btn clear"
+                type="button"
+              >
+                {t('clearCache')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Primary Action Section */}
+        <div className="launcher-action-section">
+          <LaunchButton
+            status={downloadStatus.status}
+            progress={downloadStatus.progress}
+            speed={downloadStatus.speed}
+            isGameRunning={isGameRunning}
+            onLaunchClick={handleLaunchOrInstall}
+            onCancelDownload={handleCancelDownload}
+            hasUser={!!currentUser}
+          />
+        </div>
+
+        {/* Console Log output drawer */}
+        {showLogsConsole && (
+          <div className="game-console-drawer">
+            <div className="console-header">
+              <span className="console-title">Minecraft Console Output</span>
+              <button 
+                onClick={() => setShowLogsConsole(false)} 
+                className="console-close-btn"
+                aria-label="Hide Console"
+                type="button"
+              >
+                Hide Console
+              </button>
+            </div>
+            <div className="console-output scroll-container">
+              {gameLogs.map((log, index) => (
+                <div key={index} className="console-line">
+                  {log}
+                </div>
+              ))}
+              <div ref={logEndRef} />
+            </div>
+          </div>
+        )}
+
+      </GlassCard>
+
+      {/* Minimal subtle version tag at footer */}
+      <span className="launcher-version-tag">Aether v1.0.0-Beta</span>
+    </div>
+  );
+};
+
+export default App;

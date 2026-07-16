@@ -1,0 +1,1249 @@
+/* Aether Launcher Premium Aesthetics Stylesheet */
+
+@keyframes windowFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes panelFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes logoFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(58, 168, 255, 0.1), 0 0 40px rgba(109, 91, 255, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(58, 168, 255, 0.2), 0 0 60px rgba(109, 91, 255, 0.12);
+  }
+}
+
+@keyframes launchGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(109, 91, 255, 0.4), 0 0 30px rgba(58, 168, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(109, 91, 255, 0.65), 0 0 45px rgba(58, 168, 255, 0.45);
+  }
+}
+
+/* Core Container with Frameless Rounded Window */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  border-radius: 18px; /* Rounded corners: 18px */
+  border: 1px solid rgba(255, 255, 255, 0.08); /* Borders */
+  background: #070B14; /* Default Background color */
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  padding-top: 32px; /* Title bar height offset */
+  animation: windowFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  font-family: 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+  color: #FFFFFF;
+}
+
+/* Premium Background Image and Overlay System */
+.aether-bg-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.aether-bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(8px); /* Slightly blurred */
+  transform: scale(1.04); /* Prevent border bleed from blur */
+  opacity: 0.85; /* Keep background visible but not overly bright */
+}
+
+.aether-bg-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(7, 11, 20, 0.38); /* Dark overlay: 30-45% */
+}
+
+.aether-bg-radial {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, rgba(109, 91, 255, 0.16) 0%, rgba(7, 11, 20, 0) 75%); /* Subtle radial gradient */
+}
+
+/* Modern Thin Title Bar */
+.window-titlebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  background: rgba(7, 11, 20, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  z-index: 9999;
+  user-select: none;
+}
+
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.titlebar-logo {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.titlebar-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #A9B3C7; /* Secondary Text */
+  letter-spacing: 0.12em;
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.titlebar-btn {
+  background: transparent;
+  border: none;
+  color: #A9B3C7;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+}
+
+.titlebar-btn.settings:hover {
+  color: #3AA8FF; /* Accent color on setting hover */
+  background: rgba(58, 168, 255, 0.08);
+}
+
+.titlebar-btn.close:hover {
+  background: #EF4444;
+  color: #FFFFFF;
+}
+
+/* Main Float Glass Panel Card */
+.glass-card-panel {
+  width: 650px; /* Centered glass panel width */
+  max-height: 660px; /* Floating look with spacing inside 720px height */
+  background: rgba(7, 11, 20, 0.45); /* Glassmorphism background with very subtle transparency */
+  backdrop-filter: blur(28px); /* Background blur */
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(58, 168, 255, 0.14); /* Soft blue border */
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28), 0 0 30px rgba(58, 168, 255, 0.03); /* Soft shadows, no harsh black */
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 10;
+  animation: panelFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both, pulseGlow 10s ease-in-out infinite;
+  overflow-y: auto;
+}
+
+/* Custom Scrollbar for Settings Drawer */
+.glass-card-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.glass-card-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.glass-card-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+.glass-card-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(58, 168, 255, 0.2);
+}
+
+/* Logo Section */
+.launcher-logo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: logoFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+.launcher-logo-img {
+  width: 130px; /* Approximately 120-140px wide */
+  height: auto;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 8px 16px rgba(58, 168, 255, 0.12));
+}
+
+.launcher-logo-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  color: #FFFFFF;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.launcher-logo-subtitle {
+  font-size: 9px;
+  font-weight: 700;
+  color: #A9B3C7; /* grey subtitle */
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Auth Section Styles */
+.launcher-auth-section {
+  margin-bottom: 24px;
+}
+
+.auth-login-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+/* Microsoft Login Button */
+.ms-login-btn {
+  width: 80% !important; /* Width: 80% of panel */
+  height: 56px !important; /* Height: 56px */
+  margin: 0 auto;
+}
+
+/* Separator */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  width: 80%;
+  margin: 16px 0;
+  color: rgba(169, 179, 199, 0.35);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex-grow: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08); /* Thin separator, very subtle */
+  margin: 0 12px;
+}
+
+/* Offline Login Perfect Alignment Row */
+.offline-login-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 80%;
+  margin: 0 auto;
+}
+
+.offline-submit-btn {
+  height: 42px !important;
+  padding: 0 18px !important;
+  white-space: nowrap;
+}
+
+.remember-checkbox-wrapper {
+  width: 80%;
+  margin: 10px auto 0;
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* Logged In Profile UI */
+.user-profile-card {
+  width: 80%;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.user-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3AA8FF 0%, #6D5BFF 100%);
+  color: #070B14;
+  font-weight: 800;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(109, 91, 255, 0.35);
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.user-status-text {
+  font-size: 11px;
+  color: #A9B3C7;
+}
+
+.user-controls-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* Reusable Input Component Styles */
+.aether-input-wrapper {
+  position: relative;
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.aether-input-icon-container {
+  position: absolute;
+  left: 12px;
+  color: #A9B3C7;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.aether-input-field {
+  background: rgba(7, 11, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  padding: 10px 14px;
+  border-radius: 8px;
+  outline: none;
+  font-size: 13px;
+  width: 100%;
+  height: 42px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.aether-input-field.has-icon {
+  padding-left: 36px;
+}
+
+.aether-input-field:focus {
+  border-color: #3AA8FF;
+  box-shadow: 0 0 12px rgba(58, 168, 255, 0.15);
+  background: rgba(7, 11, 20, 0.75);
+}
+
+/* Reusable Buttons */
+.aether-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  user-select: none;
+}
+
+/* Dark Glass Button - Microsoft Style */
+.btn-microsoft {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  letter-spacing: 0.02em;
+}
+
+.btn-microsoft:hover {
+  background: rgba(58, 168, 255, 0.06);
+  border-color: #3AA8FF;
+  box-shadow: 0 0 20px rgba(58, 168, 255, 0.25); /* Microsoft hover blue glow */
+}
+
+.btn-microsoft:active {
+  transform: scale(0.975); /* click animation */
+}
+
+.btn-microsoft-icon {
+  margin-right: 2px;
+}
+
+/* Secondary Button style */
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #A9B3C7;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-secondary:active {
+  transform: scale(0.97);
+}
+
+/* Danger Button style */
+.btn-danger {
+  background: rgba(239, 68, 68, 0.04);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  color: #FCA5A5;
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: #EF4444;
+  color: #FFFFFF;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+}
+
+.btn-danger:active {
+  transform: scale(0.97);
+}
+
+.aether-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Custom Premium Checkbox */
+.aether-checkbox-container {
+  display: flex;
+  align-items: center;
+}
+
+.aether-checkbox-input {
+  display: none;
+}
+
+.aether-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  color: #A9B3C7;
+  transition: color 0.2s ease;
+}
+
+.aether-checkbox-label:hover {
+  color: #FFFFFF;
+}
+
+.checkbox-custom-box {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  background: rgba(7, 11, 20, 0.45);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.aether-checkbox-label:hover .checkbox-custom-box {
+  border-color: #3AA8FF;
+}
+
+.aether-checkbox-input:checked + .aether-checkbox-label .checkbox-custom-box {
+  background: #3AA8FF;
+  border-color: #3AA8FF;
+  box-shadow: 0 0 8px rgba(58, 168, 255, 0.4);
+}
+
+.aether-checkbox-input:checked + .aether-checkbox-label .checkbox-custom-box::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 8px;
+  border: solid #070B14;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  top: 1px;
+  left: 4px;
+}
+
+/* Version Selector Field */
+.launcher-version-section {
+  width: 80%;
+  margin: 0 auto 24px;
+}
+
+.aether-version-selector-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.version-selector-main-trigger-wrapper {
+  position: relative;
+  flex-grow: 1;
+}
+
+.version-selector-trigger-btn {
+  width: 100%;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.version-selector-trigger-btn:hover {
+  background: rgba(58, 168, 255, 0.04);
+  border-color: rgba(58, 168, 255, 0.35);
+  box-shadow: 0 0 15px rgba(58, 168, 255, 0.08);
+}
+
+.trigger-left-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.grass-block-icon {
+  color: #3AA8FF;
+}
+
+.version-text-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.dropdown-chevron {
+  color: #A9B3C7;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-chevron.open {
+  transform: rotate(180deg);
+  color: #FFFFFF;
+}
+
+/* Version Selector ⇅ Switch button */
+.version-swap-action-btn {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #A9B3C7;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.version-swap-action-btn:hover {
+  background: rgba(58, 168, 255, 0.06);
+  border-color: #3AA8FF;
+  color: #3AA8FF;
+  box-shadow: 0 0 15px rgba(58, 168, 255, 0.15);
+}
+
+.version-swap-action-btn:active {
+  transform: scale(0.94);
+}
+
+/* Dropdown Menu inside card */
+.version-dropdown-menu {
+  position: absolute;
+  bottom: calc(100% + 6px); /* Drop up to avoid clipping setting drawer */
+  left: 0;
+  right: 0;
+  background: #0A0F1D;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.version-dropdown-option {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: #A9B3C7;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.version-dropdown-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #FFFFFF;
+}
+
+.version-dropdown-option.selected {
+  background: rgba(58, 168, 255, 0.08);
+  color: #3AA8FF;
+}
+
+.active-dot {
+  width: 6px;
+  height: 6px;
+  background: #3AA8FF;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #3AA8FF;
+}
+
+/* Settings Drawer inside main panel */
+.launcher-settings-drawer {
+  width: 80%;
+  margin: 0 auto 24px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: panelFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #A9B3C7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.settings-value {
+  font-size: 11px;
+  font-weight: 700;
+  color: #3AA8FF;
+}
+
+.memory-slider {
+  width: 100%;
+  accent-color: #3AA8FF;
+  height: 4px;
+  border-radius: 2px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
+.jvm-args-input {
+  background: rgba(7, 11, 20, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  outline: none;
+  width: 100%;
+}
+
+.jvm-args-input:focus {
+  border-color: #3AA8FF;
+}
+
+.settings-select-dropdown {
+  background: rgba(7, 11, 20, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  padding: 8px 10px;
+  border-radius: 6px;
+  outline: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-select-dropdown:focus {
+  border-color: #3AA8FF;
+}
+
+.settings-select-dropdown option {
+  background: #070B14;
+  color: #FFFFFF;
+}
+
+.settings-options-row {
+  display: flex;
+  gap: 16px;
+}
+
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #A9B3C7;
+  cursor: pointer;
+}
+
+.option-checkbox {
+  accent-color: #3AA8FF;
+}
+
+.settings-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.settings-action-btn {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #A9B3C7;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-action-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+}
+
+.settings-action-btn.repair:hover {
+  border-color: #3AA8FF;
+  background: rgba(58, 168, 255, 0.05);
+}
+
+.settings-action-btn.clear:hover {
+  border-color: #EF4444;
+  color: #FCA5A5;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+/* Primary Action Section - Launch Button */
+.launcher-action-section {
+  width: 80%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Massive Premium Launch Button */
+.aether-launch-btn {
+  width: 100%;
+  height: 58px; /* Largest button in launcher */
+  background: linear-gradient(135deg, #3AA8FF 0%, #6D5BFF 100%); /* Blue -> Purple */
+  border: none;
+  border-radius: 12px;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  animation: launchGlow 6s ease-in-out infinite;
+}
+
+.aether-launch-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow: 0 0 25px rgba(109, 91, 255, 0.7), 0 0 45px rgba(58, 168, 255, 0.45);
+}
+
+.aether-launch-btn:active {
+  transform: translateY(0);
+}
+
+.rocket-icon {
+  transition: transform 0.3s ease;
+}
+
+.aether-launch-btn:hover .rocket-icon {
+  transform: translate(2px, -2px) scale(1.1); /* rocket lift animation */
+}
+
+/* Launcher Running state */
+.aether-launch-btn.running {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #A9B3C7 !important;
+  cursor: not-allowed;
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+/* Launcher Loading state */
+.aether-launch-btn.loading {
+  background: rgba(109, 91, 255, 0.08) !important;
+  border: 1px solid rgba(109, 91, 255, 0.2) !important;
+  color: #A9B3C7 !important;
+  cursor: not-allowed;
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+/* Launcher Failed state */
+.aether-launch-btn.failed {
+  background: linear-gradient(135deg, #EF4444 0%, #991B1B 100%) !important;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.3) !important;
+  border: none !important;
+  animation: none !important;
+}
+
+.aether-launch-btn.failed:hover {
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.5) !important;
+}
+
+/* Downloading State Progress Overlay */
+.aether-launch-btn-container.downloading {
+  position: relative;
+  width: 100%;
+  height: 58px;
+  background: rgba(7, 11, 20, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.download-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(58, 168, 255, 0.25) 0%, rgba(109, 91, 255, 0.35) 100%);
+  transition: width 0.3s ease;
+}
+
+.download-progress-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 20px;
+  color: #3AA8FF;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.progress-info {
+  flex-grow: 1;
+  text-align: center;
+}
+
+.cancel-download-action-btn {
+  background: transparent;
+  border: none;
+  color: #EF4444;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+  z-index: 10;
+}
+
+.cancel-download-action-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.spinner-icon {
+  color: inherit;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Console Logs Output */
+.game-console-drawer {
+  width: 80%;
+  margin: 16px auto 0;
+  background: rgba(7, 11, 20, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.console-header {
+  background: rgba(7, 11, 20, 0.95);
+  padding: 8px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.console-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #A9B3C7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.console-close-btn {
+  background: transparent;
+  border: none;
+  color: #EF4444;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.console-output {
+  height: 120px;
+  padding: 10px 14px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 10px;
+  color: #3AA8FF; /* Clean blue console output */
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #020408;
+  text-align: left;
+}
+
+.console-line {
+  opacity: 0.85;
+}
+
+/* Minimal Footer Tag */
+.launcher-version-tag {
+  position: absolute;
+  bottom: 12px;
+  font-size: 9px;
+  color: rgba(169, 179, 199, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  z-index: 10;
+}
+
+/* Theme compatibility styles - preserving layout but adapting key accent tokens */
+.app-container.carbon-black {
+  background: #09090b;
+}
+.app-container.carbon-black .aether-bg-radial {
+  background: radial-gradient(circle at center, rgba(161, 161, 170, 0.1) 0%, rgba(9, 9, 11, 0) 75%);
+}
+.app-container.carbon-black .glass-card-panel {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.app-container.carbon-black .aether-launch-btn {
+  background: linear-gradient(135deg, #71717a 0%, #27272a 100%);
+  animation: none;
+}
+.app-container.carbon-black .aether-launch-btn:hover {
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.15);
+}
+
+.app-container.nebula-purple {
+  background: #070412;
+}
+.app-container.nebula-purple .aether-bg-radial {
+  background: radial-gradient(circle at center, rgba(168, 85, 247, 0.15) 0%, rgba(7, 4, 18, 0) 75%);
+}
+.app-container.nebula-purple .glass-card-panel {
+  border-color: rgba(168, 85, 247, 0.15);
+}
+.app-container.nebula-purple .aether-launch-btn {
+  background: linear-gradient(135deg, #C084FC 0%, #8B5CF6 100%);
+}
+.app-container.nebula-purple .aether-launch-btn:hover {
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.7);
+}
+
+/* ============================
+   AUTH ERROR & LOADING STATES
+   ============================ */
+.auth-error-msg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 80%;
+  margin: 0 auto;
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #FCA5A5;
+  animation: panelFadeIn 0.25s ease both;
+}
+.auth-error-dismiss {
+  background: none;
+  border: none;
+  color: #FCA5A5;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.auth-loading-hint {
+  width: 80%;
+  margin: 0 auto;
+  font-size: 11px;
+  color: #3AA8FF;
+  text-align: center;
+}
+
+/* ============================
+   ADDON SECTION WRAPPER
+   ============================ */
+.launcher-addon-section {
+  width: 80%;
+  margin: 0 auto 12px;
+}
+
+/* ============================
+   FORGE INSTALLER COMPONENT
+   ============================ */
+.forge-installer-container {
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.01);
+}
+.forge-installer-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: #A9B3C7;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+.forge-installer-header:hover { background: rgba(255,255,255,0.03); color: #FFFFFF; }
+.forge-header-left { display: flex; align-items: center; gap: 8px; }
+.forge-header-icon { color: #F59E0B; }
+.forge-installed-badge { color: #34D399; }
+.forge-expand-arrow { color: #A9B3C7; transition: transform 0.2s ease; }
+.forge-expand-arrow.open { transform: rotate(180deg); }
+.forge-installer-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: panelFadeIn 0.2s ease both;
+}
+.forge-version-row { display: flex; align-items: center; gap: 8px; }
+.forge-version-label { font-size: 11px; color: #A9B3C7; }
+.forge-version-value { font-size: 11px; font-weight: 700; color: #F59E0B; font-family: monospace; }
+.forge-no-support { font-size: 11px; color: rgba(169,179,199,0.5); }
+.forge-error-msg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #FCA5A5; }
+.forge-progress-container { display: flex; flex-direction: column; gap: 6px; }
+.forge-progress-bar-track { width: 100%; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.forge-progress-bar-fill { height: 100%; background: linear-gradient(90deg,#F59E0B,#D97706); border-radius: 2px; transition: width 0.3s ease; }
+.forge-progress-message { font-size: 11px; color: #A9B3C7; }
+.forge-success-msg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #34D399; }
+.forge-install-btn {
+  width: 100%; height: 36px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 8px; color: #F59E0B;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer; transition: all 0.2s ease;
+}
+.forge-install-btn:hover:not(:disabled) { background: rgba(245,158,11,0.15); border-color: #F59E0B; box-shadow: 0 0 12px rgba(245,158,11,0.2); }
+.forge-install-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.forge-reinstall-btn { width: 100%; background: none; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; color: #A9B3C7; font-size: 11px; padding: 7px; cursor: pointer; transition: all 0.2s ease; }
+.forge-reinstall-btn:hover { background: rgba(255,255,255,0.04); color: #FFFFFF; }
+.forge-spin { animation: spin 1s linear infinite; }
+
+/* ============================
+   MOD MANAGER COMPONENT
+   ============================ */
+.mod-manager-container {
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  overflow: visible;
+  background: rgba(255,255,255,0.01);
+}
+.mod-manager-header {
+  width: 100%;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: transparent; border: none;
+  color: #A9B3C7; cursor: pointer; font-size: 12px; font-weight: 600;
+  transition: all 0.2s ease;
+}
+.mod-manager-header:hover { background: rgba(255,255,255,0.03); color: #FFFFFF; }
+.mod-manager-header-left { display: flex; align-items: center; gap: 8px; }
+.mod-header-icon { color: #6D5BFF; }
+.mod-count-badge { background: rgba(109,91,255,0.2); border: 1px solid rgba(109,91,255,0.3); color: #A78BFA; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; }
+.mod-expand-arrow { color: #A9B3C7; font-size: 14px; transition: transform 0.2s ease; }
+.mod-expand-arrow.open { transform: rotate(180deg); }
+.mod-manager-body { padding: 12px 14px 14px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 10px; animation: panelFadeIn 0.2s ease both; }
+.mod-drop-zone {
+  width: 100%; min-height: 72px;
+  border: 1.5px dashed rgba(109,91,255,0.25);
+  border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; padding: 12px; cursor: pointer; transition: all 0.2s ease;
+  background: rgba(109,91,255,0.02);
+}
+.mod-drop-zone.dragging { border-color: #6D5BFF; background: rgba(109,91,255,0.08); box-shadow: 0 0 20px rgba(109,91,255,0.15); }
+.mod-drop-zone.installing { border-color: rgba(58,168,255,0.35); background: rgba(58,168,255,0.04); }
+.drop-icon { color: rgba(109,91,255,0.5); transition: color 0.2s ease; }
+.mod-drop-zone.dragging .drop-icon { color: #6D5BFF; }
+.drop-hint-text { font-size: 11px; color: #A9B3C7; text-align: center; }
+.drop-browse-label { font-size: 11px; color: #6D5BFF; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.drop-file-input { display: none; }
+.drop-zone-installing { display: flex; align-items: center; gap: 10px; color: #3AA8FF; font-size: 12px; }
+.installing-spinner { width: 16px; height: 16px; border: 2px solid rgba(58,168,255,0.2); border-top-color: #3AA8FF; border-radius: 50%; animation: spin 0.8s linear infinite; }
+.mod-error-banner { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.2); border-radius: 6px; font-size: 11px; color: #FCA5A5; }
+.mod-error-banner button { background: none; border: none; color: #FCA5A5; cursor: pointer; font-size: 12px; padding: 0; }
+.mod-list { display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto; padding-right: 4px; }
+.mod-list::-webkit-scrollbar { width: 4px; }
+.mod-list::-webkit-scrollbar-track { background: transparent; }
+.mod-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+.mod-list-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); gap: 8px; transition: background 0.15s ease; }
+.mod-list-item:hover { background: rgba(255,255,255,0.04); }
+.mod-list-item-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.mod-filename { font-size: 12px; font-weight: 600; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mod-filesize { font-size: 10px; color: #A9B3C7; }
+.mod-remove-btn { background: none; border: none; color: rgba(239,68,68,0.5); cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; transition: all 0.15s ease; flex-shrink: 0; }
+.mod-remove-btn:hover { color: #EF4444; background: rgba(239,68,68,0.1); }
+.mod-empty-text { font-size: 11px; color: rgba(169,179,199,0.5); text-align: center; padding: 4px 0; }
+.mod-manager-footer { display: flex; justify-content: flex-end; }
+.mod-folder-btn { background: none; border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; color: #A9B3C7; font-size: 11px; padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; }
+.mod-folder-btn:hover { background: rgba(255,255,255,0.04); color: #FFFFFF; border-color: rgba(255,255,255,0.12); }
