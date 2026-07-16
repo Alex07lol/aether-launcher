@@ -391,16 +391,21 @@ export const App: React.FC = () => {
               <form onSubmit={handleOfflineLoginSubmit} className="offline-login-row">
                 <Input
                   type="text"
-                  placeholder={currentLang === 'es' ? 'Nombre de usuario' : currentLang === 'de' ? 'Benutzername' : 'Enter Username'}
+                  placeholder={currentLang === 'es' ? 'Nombre de usuario' : currentLang === 'de' ? 'Benutzername' : 'Enter Username (3-16 chars)'}
                   value={offlineName}
-                  onChange={e => setOfflineName(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (/^[a-zA-Z0-9_]*$/.test(val)) {
+                      setOfflineName(val);
+                    }
+                  }}
                   maxLength={16}
                   icon={<UserIcon size={14} />}
                 />
                 <Button 
                   type="submit" 
                   variant="secondary" 
-                  disabled={!offlineName.trim()}
+                  disabled={offlineName.length < 3 || offlineName.length > 16}
                   className="offline-submit-btn"
                 >
                   {t('offlineLogin')}

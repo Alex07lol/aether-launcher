@@ -186,14 +186,14 @@
 /* Main Float Glass Panel Card */
 .glass-card-panel {
   width: 650px; /* Centered glass panel width */
-  max-height: 660px; /* Floating look with spacing inside 720px height */
+  max-height: 640px; /* Floating look with spacing inside 720px height */
   background: rgba(7, 11, 20, 0.45); /* Glassmorphism background with very subtle transparency */
   backdrop-filter: blur(28px); /* Background blur */
   -webkit-backdrop-filter: blur(28px);
   border: 1px solid rgba(58, 168, 255, 0.14); /* Soft blue border */
   border-radius: 16px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28), 0 0 30px rgba(58, 168, 255, 0.03); /* Soft shadows, no harsh black */
-  padding: 32px 40px;
+  padding: 18px 30px; /* Compact padding */
   display: flex;
   flex-direction: column;
   position: relative;
@@ -222,28 +222,28 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 12px; /* Compact margin */
   animation: logoFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
 }
 
 .launcher-logo-img {
-  width: 130px; /* Approximately 120-140px wide */
+  width: 80px; /* Compact logo width */
   height: auto;
-  margin-bottom: 16px;
+  margin-bottom: 8px; /* Compact margin */
   filter: drop-shadow(0 8px 16px rgba(58, 168, 255, 0.12));
 }
 
 .launcher-logo-title {
-  font-size: 24px;
+  font-size: 20px; /* Compact title size */
   font-weight: 800;
   letter-spacing: 0.25em;
   color: #FFFFFF;
   line-height: 1.2;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .launcher-logo-subtitle {
-  font-size: 9px;
+  font-size: 8px; /* Compact subtitle size */
   font-weight: 700;
   color: #A9B3C7; /* grey subtitle */
   letter-spacing: 0.18em;
@@ -252,7 +252,7 @@
 
 /* Auth Section Styles */
 .launcher-auth-section {
-  margin-bottom: 24px;
+  margin-bottom: 14px; /* Compact margin */
 }
 
 .auth-login-flow {
@@ -265,7 +265,7 @@
 /* Microsoft Login Button */
 .ms-login-btn {
   width: 80% !important; /* Width: 80% of panel */
-  height: 56px !important; /* Height: 56px */
+  height: 44px !important; /* Compact height */
   margin: 0 auto;
 }
 
@@ -274,7 +274,7 @@
   display: flex;
   align-items: center;
   width: 80%;
-  margin: 16px 0;
+  margin: 10px 0; /* Compact margin */
   color: rgba(169, 179, 199, 0.35);
   font-size: 10px;
   font-weight: 700;
@@ -307,7 +307,7 @@
 
 .remember-checkbox-wrapper {
   width: 80%;
-  margin: 10px auto 0;
+  margin: 6px auto 0; /* Compact margin */
   display: flex;
   justify-content: flex-start;
 }
@@ -319,10 +319,10 @@
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 12px;
-  padding: 16px;
+  padding: 10px 14px; /* Compact padding */
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px; /* Compact gap */
 }
 
 .user-profile-header {
@@ -557,7 +557,7 @@
 /* Version Selector Field */
 .launcher-version-section {
   width: 80%;
-  margin: 0 auto 24px;
+  margin: 0 auto 14px; /* Compact margin */
 }
 
 .aether-version-selector-container {
@@ -574,7 +574,7 @@
 
 .version-selector-trigger-btn {
   width: 100%;
-  height: 48px;
+  height: 40px; /* Compact height */
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
@@ -620,8 +620,8 @@
 
 /* Version Selector ⇅ Switch button */
 .version-swap-action-btn {
-  width: 48px;
-  height: 48px;
+  width: 40px; /* Compact width */
+  height: 40px; /* Compact height */
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
@@ -699,14 +699,14 @@
 /* Settings Drawer inside main panel */
 .launcher-settings-drawer {
   width: 80%;
-  margin: 0 auto 24px;
+  margin: 0 auto 14px; /* Compact margin */
   background: rgba(255, 255, 255, 0.01);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 12px;
-  padding: 20px;
+  padding: 12px 16px; /* Compact padding */
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px; /* Compact gap */
   animation: panelFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -845,7 +845,7 @@
 /* Massive Premium Launch Button */
 .aether-launch-btn {
   width: 100%;
-  height: 58px; /* Largest button in launcher */
+  height: 46px; /* Compact height */
   background: linear-gradient(135deg, #3AA8FF 0%, #6D5BFF 100%); /* Blue -> Purple */
   border: none;
   border-radius: 12px;
