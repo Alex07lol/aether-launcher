@@ -11,6 +11,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Aether Launcher",
         "width": 1100,
         "height": 720,

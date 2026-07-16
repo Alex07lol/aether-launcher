@@ -89,8 +89,17 @@ const XOR_KEY: &[u8] = b"AetherLauncherSecureAuthTokenKey2026";
 
 fn get_token_file_path() -> PathBuf {
     let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    if let Some(home) = std::env::var_os("HOME") {
-        path = PathBuf::from(home);
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(app_data) = std::env::var_os("APPDATA") {
+            path = PathBuf::from(app_data);
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            path = PathBuf::from(home);
+        }
     }
     path.push(".minecraft");
     path.push("aether_auth.bin");

@@ -15,6 +15,12 @@ fn greet(name: &str) -> String {
 }
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    {
+        // Fix for WebKitGTK rendering/composition bugs on Linux (e.g. blank window or nothing showing up)
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
     // Conditional plugin registration to satisfy both desktop configurations and mobile compile hosts
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let builder = tauri::Builder::default().plugin(tauri_plugin_window_state::Builder::default().build());
