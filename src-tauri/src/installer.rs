@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Emitter};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct ManifestFile {
@@ -130,3 +131,146 @@ pub fn clear_minecraft_cache(base_dir: String) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[derive(serde::Serialize, Clone)]
+struct ForgeProgress {
+    status: String,
+    progress: u32,
+    message: String,
+}
+
+#[tauri::command]
+pub fn get_forge_version(mc_version: String) -> Result<String, String> {
+    match mc_version.as_str() {
+        "1.8.9" => Ok("11.15.1.2318".to_string()),
+        "1.7.10" => Ok("10.13.4.1614".to_string()),
+        _ => Err(format!("Minecraft version {} does not have a pre-configured Forge release.", mc_version)),
+    }
+}
+
+#[tauri::command]
+pub async fn install_forge(
+    app: AppHandle,
+    mc_version: String,
+    forge_version: String,
+    minecraft_dir: String,
+) -> Result<(), String> {
+    let lib_dir = Path::new(&minecraft_dir).join("libraries");
+    std::fs::create_dir_all(&lib_dir).map_err(|e| format!("Failed to create libraries directory: {}", e))?;
+
+    // 1. Emit downloading event
+    let _ = app.emit("forge-progress", ForgeProgress {
+        status: "downloading".to_string(),
+        progress: 10,
+        message: "Connecting to Forge servers...".to_string(),
+    });
+
+    let url = format!(
+        "https://maven.minecraftforge.net/net/minecraftforge/forge/{0}-{1}/forge-{0}-{1}-installer.jar",
+        mc_version, forge_version
+    );
+
+    let client = reqwest::Client::new();
+    let res = client.get(&url).send().await.map_err(|e| {
+        let _ = app.emit("forge-progress", ForgeProgress {
+            status: "failed".to_string(),
+            progress: 0,
+            message: format!("Download request failed: {}", e),
+        });
+        format!("Download request failed: {}", e)
+    })?;
+
+    if !res.status().is_success() {
+        let err_msg = format!("Server returned status code: {}", res.status());
+        let _ = app.emit("forge-progress", ForgeProgress {
+            status: "failed".to_string(),
+            progress: 0,
+            message: err_msg.clone(),
+        });
+        return Err(err_msg);
+    }
+
+    let _ = app.emit("forge-progress", ForgeProgress {
+        status: "downloading".to_string(),
+        progress: 30,
+        message: "Downloading installer archive...".to_string(),
+    });
+
+    let bytes = res.bytes().await.map_err(|e| {
+        let _ = app.emit("forge-progress", ForgeProgress {
+            status: "failed".to_string(),
+            progress: 0,
+            message: format!("Failed to read downloaded bytes: {}", e),
+        });
+        format!("Failed to read downloaded bytes: {}", e)
+    })?;
+
+    // 2. Save the installer jar itself
+    let installer_name = format!("forge-{}-{}-installer.jar", mc_version, forge_version);
+    let installer_path = lib_dir.join(&installer_name);
+    std::fs::write(&installer_path, &bytes).map_err(|e| {
+        let _ = app.emit("forge-progress", ForgeProgress {
+            status: "failed".to_string(),
+            progress: 0,
+            message: format!("Failed to write installer jar to disk: {}", e),
+        });
+        format!("Failed to write installer jar to disk: {}", e)
+    })?;
+
+    // 3. Emit extracting event
+    let _ = app.emit("forge-progress", ForgeProgress {
+        status: "extracting".to_string(),
+        progress: 60,
+        message: "Extracting Forge libraries...".to_string(),
+    });
+
+    let reader = std::io::Cursor::new(bytes);
+    let mut archive = zip::ZipArchive::new(reader).map_err(|e| {
+        let _ = app.emit("forge-progress", ForgeProgress {
+            status: "failed".to_string(),
+            progress: 0,
+            message: format!("Failed to read zip archive: {}", e),
+        });
+        format!("Failed to parse zip archive: {}", e)
+    })?;
+
+    // Extract all inner jar files to libraries directory
+    let archive_len = archive.len();
+    for i in 0..archive_len {
+        let mut file = match archive.by_index(i) {
+            Ok(file) => file,
+            Err(_) => continue,
+        };
+
+        let name = file.name().to_string();
+        if name.ends_with(".jar") {
+            let path = Path::new(&name);
+            if let Some(filename) = path.file_name() {
+                let dest_path = lib_dir.join(filename);
+                if let Ok(mut dest_file) = std::fs::File::create(&dest_path) {
+                    let _ = std::io::copy(&mut file, &mut dest_file);
+                }
+            }
+        }
+
+        // Limit event emission frequency
+        if i % 10 == 0 || i == archive_len - 1 {
+            let progress_percent = 60 + ((i as f32 / archive_len as f32) * 30.0) as u32;
+            let _ = app.emit("forge-progress", ForgeProgress {
+                status: "extracting".to_string(),
+                progress: progress_percent,
+                message: format!("Extracting library {} of {}...", i + 1, archive_len),
+            });
+        }
+    }
+
+    // 4. Emit completed event
+    let _ = app.emit("forge-progress", ForgeProgress {
+        status: "completed".to_string(),
+        progress: 100,
+        message: "Forge installation successfully completed!".to_string(),
+    });
+
+    Ok(())
+}
+

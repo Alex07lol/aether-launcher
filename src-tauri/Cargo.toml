@@ -17,6 +17,7 @@ window-vibrancy = "0.7"
 reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls", "json"] }
 sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "io-util", "process", "net", "time"] }
+zip = "2.2.0"
 
 [profile.release]
 panic = "abort"

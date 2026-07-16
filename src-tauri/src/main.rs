@@ -37,6 +37,8 @@ fn main() {
             installer::initialize_minecraft_structure,
             installer::verify_manifest,
             installer::clear_minecraft_cache,
+            installer::get_forge_version,
+            installer::install_forge,
             auth::login_microsoft,
             auth::login_refresh,
             auth::clear_secure_token,
