@@ -17,11 +17,6 @@ fn greet(name: &str) -> String {
 fn main() {
     #[cfg(target_os = "linux")]
     {
-        // Prevent AppImage bundled libraries from leaking into WebKitGTK child processes 
-        // (Fixes persistent white screens due to host graphics driver crashes)
-        std::env::remove_var("LD_LIBRARY_PATH");
-        std::env::remove_var("LD_PRELOAD");
-
         // Fix for WebKitGTK DMABUF rendering bug on Linux (NVIDIA/AMD GPU drivers)
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         // Disable accelerated compositing entirely as a last resort for persistent white screens on NVIDIA/Wayland
