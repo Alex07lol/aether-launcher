@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::TcpListener;
 use std::path::PathBuf;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
+use tokio::net::TcpListener;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::time::{timeout, Duration};
 
 const MS_CLIENT_ID: &str = "000000004C12AE29"; // Minecraft Launcher Client ID (pre-approved for Xbox Live)
 const PORT: u16 = 53124;
@@ -170,8 +172,9 @@ pub fn clear_secure_token() -> Result<(), String> {
 }
 
 // Perform loopback server flow to capture OAuth code
-fn acquire_oauth_code() -> Result<String, String> {
+async fn acquire_oauth_code() -> Result<String, String> {
     let listener = TcpListener::bind(format!("127.0.0.1:{}", PORT))
+        .await
         .map_err(|e| format!("OAuth loopback port already in use: {}", e))?;
 
     // Format Microsoft login URL
@@ -183,41 +186,53 @@ fn acquire_oauth_code() -> Result<String, String> {
     // Open link in browser
     open_url(&login_url);
 
-    // Listen for code redirection
-    for stream_res in listener.incoming() {
-        let mut stream = stream_res.map_err(|e| format!("Failed to accept connection: {}", e))?;
-        let mut buffer = [0; 2048];
-        let bytes_read = stream.read(&mut buffer).map_err(|e| format!("Failed to read stream: {}", e))?;
-        let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+    // Timeout limit (60 seconds)
+    let timeout_limit = Duration::from_secs(60);
 
-        if let Some(code_idx) = request.find("code=") {
-            let rest = &request[code_idx + 5..];
-            let end_idx = rest.find(' ').unwrap_or(rest.len());
-            let raw_code = &rest[..end_idx];
-            
-            // Extract the actual code (strip query parameters if any)
-            let code = raw_code.split('&').next().unwrap_or(raw_code).to_string();
+    let code_result = timeout(timeout_limit, async {
+        loop {
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let mut buffer = [0; 2048];
+                if let Ok(bytes_read) = stream.read(&mut buffer).await {
+                    if bytes_read == 0 {
+                        continue;
+                    }
+                    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
 
-            // Send successful login response to browser
-            let html = "<html><head><title>Aether Launcher</title><style>body { background: #030712; color: #38bdf8; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; } h1 { font-size: 24px; text-shadow: 0 0 10px rgba(56,189,248,0.5); }</style></head><body><div><h1>Authentication Successful!</h1><p>You can now close this tab and return to the launcher.</p></div></body></html>";
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                html.len(), html
-            );
-            let _ = stream.write_all(response.as_bytes());
-            let _ = stream.flush();
+                    if let Some(code_idx) = request.find("code=") {
+                        let rest = &request[code_idx + 5..];
+                        let end_idx = rest.find(' ').unwrap_or(rest.len());
+                        let raw_code = &rest[..end_idx];
+                        
+                        // Extract the actual code (strip query parameters if any)
+                        let code = raw_code.split('&').next().unwrap_or(raw_code).to_string();
 
-            return Ok(code);
+                        // Send successful login response to browser
+                        let html = "<html><head><title>Aether Launcher</title><style>body { background: #030712; color: #38bdf8; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; } h1 { font-size: 24px; text-shadow: 0 0 10px rgba(56,189,248,0.5); }</style></head><body><div><h1>Authentication Successful!</h1><p>You can now close this tab and return to the launcher.</p></div></body></html>";
+                        let response = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            html.len(), html
+                        );
+                        let _ = stream.write_all(response.as_bytes()).await;
+                        let _ = stream.flush().await;
+
+                        return Ok(code);
+                    }
+                }
+            }
         }
-    }
+    }).await;
 
-    Err("OAuth loopback listener terminated unexpectedly".to_string())
+    match code_result {
+        Ok(result) => result,
+        Err(_) => Err("Authentication timed out (60 seconds limit exceeded). Please try again.".to_string()),
+    }
 }
 
 #[tauri::command]
 pub async fn login_microsoft(_app: AppHandle) -> Result<AuthProfile, String> {
     // 1. Get OAuth Code
-    let code = acquire_oauth_code()?;
+    let code = acquire_oauth_code().await?;
 
     let client = Client::builder()
         .build()
