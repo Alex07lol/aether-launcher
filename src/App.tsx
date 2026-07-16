@@ -16,6 +16,7 @@ import ForgeInstaller from './components/ForgeInstaller';
 import { UserIcon } from './components/Icons';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import './App.css';
 
 // Detect if running inside Tauri environment
@@ -175,6 +176,13 @@ export const App: React.FC = () => {
         unlistenLog.then(fn => fn());
         unlistenExit.then(fn => fn());
       };
+    }
+  }, []);
+
+  // Show the window after React has mounted and painted (prevents white flash on Linux)
+  useEffect(() => {
+    if (isTauri) {
+      getCurrentWindow().show();
     }
   }, []);
 
