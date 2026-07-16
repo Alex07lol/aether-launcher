@@ -19,7 +19,7 @@
         "fullscreen": false,
         "decorations": false,
         "transparent": false,
-        "visible": false
+        "visible": true
       }
     ],
     "security": {
