@@ -10,6 +10,7 @@ use tauri::AppHandle;
 const MS_CLIENT_ID: &str = "000000004C12AE29"; // Minecraft Launcher Client ID (pre-approved for Xbox Live)
 const PORT: u16 = 53124;
 const REDIRECT_URI: &str = "http://127.0.0.1:53124";
+const REDIRECT_URI_ENCODED: &str = "http%3A%2F%2F127.0.0.1%3A53124";
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AuthProfile {
@@ -176,7 +177,7 @@ fn acquire_oauth_code() -> Result<String, String> {
     // Format Microsoft login URL
     let login_url = format!(
         "https://login.live.com/oauth20_authorize.srf?client_id={}&response_type=code&redirect_uri={}&scope=XboxLive.signin%20offline_access",
-        MS_CLIENT_ID, REDIRECT_URI
+        MS_CLIENT_ID, REDIRECT_URI_ENCODED
     );
 
     // Open link in browser
