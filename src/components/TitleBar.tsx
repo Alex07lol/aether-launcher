@@ -36,6 +36,12 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onSettingsClick }) => {
   };
 
   const handleDrag = (e: React.MouseEvent) => {
+    // Prevent dragging when clicking buttons inside the titlebar
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) {
+      return;
+    }
+
     // Draggable only if left clicking on the titlebar area
     if (appWindow && e.buttons === 1) {
       appWindow.startDragging();
