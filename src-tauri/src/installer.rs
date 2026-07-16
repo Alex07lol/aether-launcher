@@ -166,7 +166,7 @@ pub async fn install_forge(
     });
 
     let url = format!(
-        "https://maven.minecraftforge.net/net/minecraftforge/forge/{0}-{1}/forge-{0}-{1}-installer.jar",
+        "https://maven.minecraftforge.net/net/minecraftforge/forge/{0}-{1}-{0}/forge-{0}-{1}-{0}-installer.jar",
         mc_version, forge_version
     );
 
