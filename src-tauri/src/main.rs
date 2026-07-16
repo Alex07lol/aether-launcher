@@ -17,9 +17,10 @@ fn greet(name: &str) -> String {
 fn main() {
     #[cfg(target_os = "linux")]
     {
-        // Fix for WebKitGTK rendering/composition bugs on Linux (e.g. blank or white window)
+        // Fixes for WebKitGTK rendering/composition bugs on Linux (especially NVIDIA/Wayland on Arch/CachyOS)
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        std::env::set_var("__NV_DISABLE_EXPLICIT_SYNC", "1");
+        std::env::set_var("GDK_BACKEND", "x11");
     }
 
     // Conditional plugin registration to satisfy both desktop configurations and mobile compile hosts
