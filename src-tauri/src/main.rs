@@ -19,6 +19,8 @@ fn main() {
     {
         // Fix for WebKitGTK DMABUF rendering bug on Linux (NVIDIA/AMD GPU drivers)
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        // Disable accelerated compositing entirely as a last resort for persistent white screens on NVIDIA/Wayland
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
     }
 
     // Conditional plugin registration to satisfy both desktop configurations and mobile compile hosts

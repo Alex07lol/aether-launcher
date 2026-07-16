@@ -15,12 +15,12 @@ import ModManager from './components/ModManager';
 import ForgeInstaller from './components/ForgeInstaller';
 import { UserIcon } from './components/Icons';
 import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri as checkIsTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import './App.css';
 
-// Detect if running inside Tauri environment
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+// Detect if running inside Tauri environment using the official API
+const isTauri = checkIsTauri();
 
 const translations = {
   en: {
