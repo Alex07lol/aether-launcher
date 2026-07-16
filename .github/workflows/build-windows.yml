@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:  # allow manual trigger from GitHub UI
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     name: Build NSIS Installer (Windows x64)
@@ -32,13 +35,10 @@ jobs:
           cache: 'npm'
 
       - name: Install frontend dependencies
-        run: npm install
-
-      - name: Install Tauri CLI
-        run: npm install -g @tauri-apps/cli@^2
+        run: npm ci
 
       - name: Build Windows NSIS installer
-        run: npm run tauri build -- --bundles nsis
+        run: npx tauri build --bundles nsis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
