@@ -29,11 +29,11 @@ license=("MIT")
 depends=("webkit2gtk-4.1" "gtk3" "cairo" "pango" "glib2")
 
 package() {
-  install -Dm755 "$startdir/src-tauri/target/release/aether-launcher" "$pkgdir/usr/bin/aether-launcher"
-  install -Dm644 "$startdir/src-tauri/icons/128x128.png" "$pkgdir/usr/share/pixmaps/aether-launcher.png"
+  install -Dm755 "\$startdir/src-tauri/target/release/aether-launcher" "\$pkgdir/usr/bin/aether-launcher"
+  install -Dm644 "\$startdir/src-tauri/icons/128x128.png" "\$pkgdir/usr/share/pixmaps/aether-launcher.png"
   
-  mkdir -p "$pkgdir/usr/share/applications"
-  cat << DESK > "$pkgdir/usr/share/applications/aether-launcher.desktop"
+  mkdir -p "\$pkgdir/usr/share/applications"
+  cat << DESK > "\$pkgdir/usr/share/applications/aether-launcher.desktop"
 [Desktop Entry]
 Name=Aether Launcher
 Exec=aether-launcher

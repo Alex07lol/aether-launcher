@@ -2,7 +2,6 @@ use reqwest::header::USER_AGENT;
 use serde::Deserialize;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
 use tauri::AppHandle;
 use tauri::Emitter;
 
