@@ -13,7 +13,65 @@ export interface IAuthService {
   refreshSession(profile: UserProfile): Promise<UserProfile>;
 }
 
+interface AccountEntry {
+  username: string;
+  uuid: string;
+  accessToken: string;
+  userType: 'mojang' | 'microsoft' | 'offline';
+  created: string;
+  lastUsed: string;
+}
+
+interface AccountsFileStore {
+  activeAccountUuid: string | null;
+  accounts: Record<string, AccountEntry>;
+}
+
 class AuthService implements IAuthService {
+  private getAccountsStore(): AccountsFileStore {
+    try {
+      const stored = localStorage.getItem('aether_accounts');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to parse accounts store from localStorage:', e);
+    }
+    return { activeAccountUuid: null, accounts: {} };
+  }
+
+  private saveAccountsStore(store: AccountsFileStore): void {
+    try {
+      localStorage.setItem('aether_accounts', JSON.stringify(store, null, 2));
+    } catch (e) {
+      console.error('Failed to save accounts store to localStorage:', e);
+    }
+
+    if (isTauri) {
+      invoke('save_accounts_json', { jsonContent: JSON.stringify(store, null, 2) }).catch((err) => {
+        console.error('[AuthService] Failed to save accounts.json via Tauri:', err);
+      });
+    }
+  }
+
+  public recordLogin(profile: UserProfile): void {
+    const store = this.getAccountsStore();
+    const now = new Date().toISOString();
+    const existing = store.accounts[profile.uuid];
+
+    store.accounts[profile.uuid] = {
+      username: profile.username,
+      uuid: profile.uuid,
+      accessToken: profile.accessToken,
+      userType: profile.userType,
+      created: existing ? existing.created : now,
+      lastUsed: now,
+    };
+    store.activeAccountUuid = profile.uuid;
+
+    this.saveAccountsStore(store);
+  }
+
   async loginOffline(username: string): Promise<UserProfile> {
     useLauncherStore.getState().setIsAuthenticating(true);
     
@@ -27,6 +85,7 @@ class AuthService implements IAuthService {
       userType: 'offline',
     };
     
+    this.recordLogin(profile);
     useLauncherStore.getState().setCurrentUser(profile);
     useLauncherStore.getState().setIsAuthenticating(false);
     return profile;
@@ -39,6 +98,7 @@ class AuthService implements IAuthService {
       try {
         console.log('[AuthService] Initiating native Microsoft login...');
         const profile = await invoke<UserProfile>('login_microsoft');
+        this.recordLogin(profile);
         useLauncherStore.getState().setCurrentUser(profile);
         useLauncherStore.getState().setIsAuthenticating(false);
         return profile;
@@ -55,6 +115,7 @@ class AuthService implements IAuthService {
         accessToken: 'ms_token_' + Math.random().toString(36).substring(2),
         userType: 'microsoft',
       };
+      this.recordLogin(profile);
       useLauncherStore.getState().setCurrentUser(profile);
       useLauncherStore.getState().setIsAuthenticating(false);
       return profile;
@@ -65,6 +126,7 @@ class AuthService implements IAuthService {
     if (isTauri) {
       console.log('[AuthService] Attempting Microsoft secure token refresh...');
       const profile = await invoke<UserProfile>('login_refresh');
+      this.recordLogin(profile);
       return profile;
     } else {
       // Browser fallback mock
@@ -74,6 +136,7 @@ class AuthService implements IAuthService {
         accessToken: 'ms_refreshed_token_' + Math.random().toString(36).substring(2),
         userType: 'microsoft',
       };
+      this.recordLogin(profile);
       return profile;
     }
   }
@@ -86,6 +149,11 @@ class AuthService implements IAuthService {
         console.error('[AuthService] Clear secure token failed:', e);
       }
     }
+
+    const store = this.getAccountsStore();
+    store.activeAccountUuid = null;
+    this.saveAccountsStore(store);
+
     useLauncherStore.getState().setCurrentUser(null);
   }
 
@@ -93,10 +161,12 @@ class AuthService implements IAuthService {
     if (profile.userType === 'microsoft') {
       return this.loginRefresh();
     }
-    return {
+    const refreshed: UserProfile = {
       ...profile,
       accessToken: 'refreshed_token_' + Math.random().toString(36).substring(2),
     };
+    this.recordLogin(refreshed);
+    return refreshed;
   }
 
   private generateUUID(name: string): string {

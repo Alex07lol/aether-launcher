@@ -34,6 +34,17 @@ pub async fn cancel_download(url: String) -> Result<(), String> {
     Ok(())
 }
 
+fn get_http_client() -> &'static Client {
+    static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
+    HTTP_CLIENT.get_or_init(|| {
+        Client::builder()
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .pool_max_idle_per_host(10)
+            .build()
+            .unwrap_or_default()
+    })
+}
+
 #[tauri::command]
 pub async fn download_file(
     app: AppHandle,
@@ -54,9 +65,7 @@ pub async fn download_file(
         std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create directories: {}", e))?;
     }
 
-    let client = Client::builder()
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let client = get_http_client();
 
     // 1. Support Resuming: Check if the file already exists and get its size
     let mut start_byte = 0;
@@ -160,28 +169,30 @@ pub async fn download_file(
     // Flush file buffers to disk
     file.sync_all().map_err(|e| format!("Failed to sync file buffer: {}", e))?;
 
-    // 3. Verify SHA-256 if expected hash is provided
+    // 3. Verify SHA-256 if expected hash is provided and not empty
     if let Some(ref expected_hash) = expected_sha256 {
-        // Update status to verifying
-        let _ = app.emit("download-progress", ProgressPayload {
-            url: url.clone(),
-            dest_path: dest_path.clone(),
-            bytes_downloaded,
-            total_bytes,
-            progress: 100.0,
-            speed: "0 KB/s".to_string(),
-            current_file: file_name.clone(),
-            status: "verifying".to_string(),
-        });
+        if !expected_hash.is_empty() {
+            // Update status to verifying
+            let _ = app.emit("download-progress", ProgressPayload {
+                url: url.clone(),
+                dest_path: dest_path.clone(),
+                bytes_downloaded,
+                total_bytes,
+                progress: 100.0,
+                speed: "0 KB/s".to_string(),
+                current_file: file_name.clone(),
+                status: "verifying".to_string(),
+            });
 
-        let calculated_hash = calculate_sha256(dest_file_path)?;
-        if calculated_hash.to_lowercase() != expected_hash.to_lowercase() {
-            // Remove corrupted file so it gets redownloaded on retry
-            let _ = std::fs::remove_file(dest_file_path);
-            return Err(format!(
-                "SHA256 verification failed! Expected: {}, Calculated: {}",
-                expected_hash, calculated_hash
-            ));
+            let calculated_hash = calculate_sha256(dest_file_path)?;
+            if calculated_hash.to_lowercase() != expected_hash.to_lowercase() {
+                // Remove corrupted file so it gets redownloaded on retry
+                let _ = std::fs::remove_file(dest_file_path);
+                return Err(format!(
+                    "SHA256 verification failed! Expected: {}, Calculated: {}",
+                    expected_hash, calculated_hash
+                ));
+            }
         }
     }
 
@@ -201,12 +212,13 @@ pub async fn download_file(
 }
 
 pub fn calculate_sha256(path: &Path) -> Result<String, String> {
-    let mut file = File::open(path).map_err(|e| format!("Failed to open file for hashing: {}", e))?;
+    let file = File::open(path).map_err(|e| format!("Failed to open file for hashing: {}", e))?;
+    let mut reader = std::io::BufReader::with_capacity(256 * 1024, file);
     let mut hasher = Sha256::new();
-    let mut buffer = [0; 64 * 1024]; // 64KB buffer
+    let mut buffer = [0; 256 * 1024]; // 256KB buffer for high throughput
 
     loop {
-        let n = file.read(&mut buffer).map_err(|e| format!("Error reading file for hashing: {}", e))?;
+        let n = reader.read(&mut buffer).map_err(|e| format!("Error reading file for hashing: {}", e))?;
         if n == 0 {
             break;
         }

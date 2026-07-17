@@ -34,17 +34,22 @@ export interface IDownloaderService {
   cancelDownload(versionId?: string): Promise<void>;
 }
 
-// Global listener for Tauri download progress events
+// Global listener for Tauri download progress events (throttled via requestAnimationFrame for 60fps UI smoothness)
+let animFrameId: number | null = null;
 if (isTauri) {
   listen<DownloadProgressPayload>('download-progress', (event) => {
-    const { progress, speed, current_file, status, bytes_downloaded, total_bytes } = event.payload;
-    useLauncherStore.getState().setDownloadStatus({
-      status,
-      progress: Math.round(progress),
-      downloadedSize: bytes_downloaded,
-      totalSize: total_bytes,
-      speed,
-      currentFile: current_file,
+    if (animFrameId !== null) cancelAnimationFrame(animFrameId);
+    animFrameId = requestAnimationFrame(() => {
+      const { progress, speed, current_file, status, bytes_downloaded, total_bytes } = event.payload;
+      useLauncherStore.getState().setDownloadStatus({
+        status,
+        progress: Math.round(progress),
+        downloadedSize: bytes_downloaded,
+        totalSize: total_bytes,
+        speed,
+        currentFile: current_file,
+      });
+      animFrameId = null;
     });
   });
 }
@@ -73,6 +78,7 @@ export const getVersionManifest = (versionId: string): VersionManifest => {
 
 class DownloaderService implements IDownloaderService {
   private downloadInterval: number | null = null;
+  private currentDownloadUrl: string | null = null;
 
   async startDownload(versionId: string): Promise<void> {
     await this.runUpdateOrRepair(versionId, false);
@@ -96,14 +102,14 @@ class DownloaderService implements IDownloaderService {
 
     if (isTauri) {
       try {
-        const minecraftDir = store.settings.minecraftDir || '/home/aether/.minecraft';
+        const minecraftDir = store.settings.minecraftDir || '/home/aether/.aether-launcher';
         
-        // 1. Scaffold directories: .minecraft, libraries, versions, assets, mods
+        // 1. Scaffold directories: .aether-launcher, libraries, versions, assets, mods
         console.log(`[Installer] Initializing structure in ${minecraftDir}`);
         await invoke('initialize_minecraft_structure', { baseDir: minecraftDir });
 
-        // 2. Load manifest.json
-        const manifest = getVersionManifest(versionId);
+        // 2. Load manifest from Mojang API via Rust
+        const manifest = await invoke<VersionManifest>('get_version_manifest_api', { versionId });
         const manifestJson = JSON.stringify(manifest);
 
         // 3. Compare versions & identify changed/mismatched files only
@@ -142,11 +148,16 @@ class DownloaderService implements IDownloaderService {
           });
 
           // Invoke downloader for changed file
-          await invoke('download_file', {
-            url: file.url,
-            destPath,
-            expectedSha256: file.sha256
-          });
+          this.currentDownloadUrl = file.url;
+          try {
+            await invoke('download_file', {
+              url: file.url,
+              destPath,
+              expectedSha256: file.sha256
+            });
+          } finally {
+            this.currentDownloadUrl = null;
+          }
 
           downloadedBytes += file.size;
         }
@@ -176,11 +187,12 @@ class DownloaderService implements IDownloaderService {
     const store = useLauncherStore.getState();
     
     if (isTauri) {
-      const url = 'https://github.com/tauri-apps/tauri/archive/refs/tags/tauri-v2.0.0.zip';
-      try {
-        await invoke('cancel_download', { url });
-      } catch (e) {
-        console.error('Cancel invoke failed:', e);
+      if (this.currentDownloadUrl) {
+        try {
+          await invoke('cancel_download', { url: this.currentDownloadUrl });
+        } catch (e) {
+          console.error('Cancel invoke failed:', e);
+        }
       }
     } else {
       this.clearDownloadInterval();

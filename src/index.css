@@ -26,18 +26,20 @@
   --scrollbar-thumb: rgba(56, 189, 248, 0.2);
   --scrollbar-thumb-hover: rgba(56, 189, 248, 0.4);
 
-  /* Animations */
-  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-fast: all 0.15s ease-out;
+  /* Animations & Smooth GPU Acceleration */
+  --transition-smooth: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-fast: all 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-spring: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 
   color-scheme: dark;
   color: var(--text-primary);
   background-color: var(--bg-primary);
 
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  text-rendering: optimizeSpeed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transform: translateZ(0);
 }
 
 * {
@@ -70,6 +72,9 @@ body {
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-glow);
   transition: var(--transition-smooth);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
 
 .glass-panel:hover {
@@ -92,6 +97,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  backface-visibility: hidden;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .glass-button:hover {

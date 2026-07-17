@@ -1,0 +1,16 @@
+{
+  "id": "1.8.9",
+  "type": "release",
+  "mainClass": "net.minecraft.client.main.Main",
+  "assets": "1.8",
+  "complianceLevel": 0,
+  "downloads": {
+    "client": {
+      "sha1": "7d660db702008f51173663b6a22e84d4fb4226f3",
+      "size": 8627198,
+      "url": "https://launcher.mojang.com/v1/objects/7d660db702008f51173663b6a22e84d4fb4226f3/client.jar"
+    }
+  },
+  "releaseTime": "2015-12-09T14:48:47+00:00",
+  "time": "2015-12-09T14:48:47+00:00"
+}

@@ -14,7 +14,7 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 export const ForgeInstaller: React.FC = () => {
   const { settings, selectedVersion } = useLauncherStore();
-  const minecraftDir = settings.minecraftDir || '/home/aether/.minecraft';
+  const minecraftDir = settings.minecraftDir || '/home/aether/.aether-launcher';
   const versionId = selectedVersion || '1.8.9';
 
   const [recommendedVersion, setRecommendedVersion] = useState<string | null>(null);

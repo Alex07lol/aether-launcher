@@ -123,10 +123,11 @@ export const App: React.FC = () => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // settings and logs states
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [customJvmArgs, setCustomJvmArgs] = useState('-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20');
+  const [customJvmArgs, setCustomJvmArgs] = useState('-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=32M -XX:+AlwaysPreTouch -XX:+DisableExplicitGC');
   const [launchForge, setLaunchForge] = useState(false);
+  const [isIntelCpuDetected, setIsIntelCpuDetected] = useState(false);
+  const [systemRam, setSystemRam] = useState<{ total_mb: number; available_mb: number }>({ total_mb: 8192, available_mb: 4096 });
   const [gameLogs, setGameLogs] = useState<string[]>([]);
   const [isGameRunning, setIsGameRunning] = useState(false);
   const [showLogsConsole, setShowLogsConsole] = useState(false);
@@ -135,6 +136,22 @@ export const App: React.FC = () => {
   useEffect(() => {
     versionManager.fetchVersions();
     settingsService.loadSettings();
+
+    if (isTauri) {
+      invoke<boolean>('detect_intel_cpu').then((detected) => {
+        setIsIntelCpuDetected(detected);
+      }).catch(console.error);
+
+      invoke<{ total_mb: number; available_mb: number }>('get_system_ram').then((ramInfo) => {
+        setSystemRam(ramInfo);
+      }).catch(console.error);
+    } else if (typeof navigator !== 'undefined' && (navigator as any).deviceMemory) {
+      const devMemGb = (navigator as any).deviceMemory;
+      setSystemRam({
+        total_mb: devMemGb * 1024,
+        available_mb: Math.round(devMemGb * 1024 * 0.6),
+      });
+    }
 
     // Load remembered user on mount
     const savedUser = localStorage.getItem('aether_remembered_user');
@@ -204,16 +221,24 @@ export const App: React.FC = () => {
       setGameLogs(['[Launcher] Preparing JVM sandbox and folders...']);
 
       try {
-        const minecraftDir = settings.minecraftDir || '/home/aether/.minecraft';
+        const minecraftDir = settings.minecraftDir || '/home/aether/.aether-launcher';
+        const minMemory = settings.minMemory || 1024;
         const maxMemory = settings.maxMemory || 4096;
+        const combinedJvmArgs = `${settings.jvmArgs || ''} ${customJvmArgs || ''}`.trim();
         
-        console.log(`[Launcher] Launching Minecraft: version=${selectedVersion}, RAM=${maxMemory}MB, Forge=${launchForge}`);
+        console.log(`[Launcher] Launching Minecraft: version=${selectedVersion}, RAM=${minMemory}-${maxMemory}MB, IntelPerf=${settings.enableIntelPerf}`);
         
         await invoke('launch_game', {
           versionId: selectedVersion,
           minecraftDir,
+          javaPath: settings.javaPath || '',
+          minMemory,
           maxMemory,
-          customArgs: customJvmArgs,
+          customArgs: combinedJvmArgs,
+          enableIntelPerf: settings.enableIntelPerf ?? true,
+          width: settings.width || 854,
+          height: settings.height || 480,
+          fullScreen: settings.fullScreen || false,
           isForge: launchForge,
           username: currentUser.username,
           uuid: currentUser.uuid,
@@ -254,7 +279,7 @@ export const App: React.FC = () => {
     if (!confirmClear) return;
 
     try {
-      const minecraftDir = settings.minecraftDir || '/home/aether/.minecraft';
+      const minecraftDir = settings.minecraftDir || '/home/aether/.aether-launcher';
       if (isTauri) {
         await invoke('clear_minecraft_cache', { baseDir: minecraftDir });
       }
@@ -463,14 +488,16 @@ export const App: React.FC = () => {
             <div className="settings-field">
               <div className="settings-field-header">
                 <span className="settings-label">{t('maxMemory')}</span>
-                <span className="settings-value">{(settings.maxMemory / 1024).toFixed(1)} GB</span>
+                <span className="settings-value">
+                  {((settings.maxMemory || 4096) / 1024).toFixed(1)} GB / {((systemRam.total_mb || 8192) / 1024).toFixed(1)} GB Total (Avail: {((systemRam.available_mb || 4096) / 1024).toFixed(1)} GB)
+                </span>
               </div>
               <input 
                 type="range" 
                 min={1024} 
-                max={8192} 
-                step={512}
-                value={settings.maxMemory || 4096}
+                max={Math.max(1024, (systemRam.total_mb || 8192) - 512)} 
+                step={256}
+                value={Math.min(settings.maxMemory || 4096, systemRam.total_mb || 8192)}
                 onChange={(e) => {
                   settingsService.saveSettings({
                     ...settings,
@@ -557,6 +584,21 @@ export const App: React.FC = () => {
                   className="option-checkbox"
                 />
                 <span>{t('launchForge')}</span>
+              </label>
+
+              <label className="checkbox-option">
+                <input 
+                  type="checkbox" 
+                  checked={settings.enableIntelPerf ?? true}
+                  onChange={e => {
+                    settingsService.saveSettings({
+                      ...settings,
+                      enableIntelPerf: e.target.checked,
+                    });
+                  }}
+                  className="option-checkbox"
+                />
+                <span>Intel CPU Performance {isIntelCpuDetected ? '(Intel CPU Detected)' : ''}</span>
               </label>
 
               <label className="checkbox-option">

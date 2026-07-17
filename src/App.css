@@ -69,6 +69,9 @@
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   font-family: 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
   color: #FFFFFF;
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 
 /* Premium Background Image and Overlay System */
@@ -88,8 +91,10 @@
   height: 100%;
   object-fit: cover;
   filter: blur(8px); /* Slightly blurred */
-  transform: scale(1.04); /* Prevent border bleed from blur */
+  transform: scale(1.04) translateZ(0); /* Prevent border bleed from blur with GPU layer */
   opacity: 0.85; /* Keep background visible but not overly bright */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 
 .aether-bg-overlay {
@@ -185,15 +190,15 @@
 
 /* Main Float Glass Panel Card */
 .glass-card-panel {
-  width: 650px; /* Centered glass panel width */
-  max-height: 640px; /* Floating look with spacing inside 720px height */
+  width: 580px; /* Tighter, cohesive glass panel width */
+  max-height: 620px; /* Tighter floating look */
   background: rgba(7, 11, 20, 0.45); /* Glassmorphism background with very subtle transparency */
   backdrop-filter: blur(28px); /* Background blur */
   -webkit-backdrop-filter: blur(28px);
   border: 1px solid rgba(58, 168, 255, 0.14); /* Soft blue border */
   border-radius: 16px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28), 0 0 30px rgba(58, 168, 255, 0.03); /* Soft shadows, no harsh black */
-  padding: 18px 30px; /* Compact padding */
+  padding: 20px 24px; /* Balanced tight padding */
   display: flex;
   flex-direction: column;
   position: relative;
@@ -222,24 +227,24 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 12px; /* Compact margin */
+  margin-bottom: 8px; /* Compact margin */
   animation: logoFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
 }
 
 .launcher-logo-img {
-  width: 80px; /* Compact logo width */
+  width: 72px; /* Compact logo width */
   height: auto;
-  margin-bottom: 8px; /* Compact margin */
+  margin-bottom: 4px; /* Compact margin */
   filter: drop-shadow(0 8px 16px rgba(58, 168, 255, 0.12));
 }
 
 .launcher-logo-title {
-  font-size: 20px; /* Compact title size */
+  font-size: 18px; /* Compact title size */
   font-weight: 800;
   letter-spacing: 0.25em;
   color: #FFFFFF;
   line-height: 1.2;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .launcher-logo-subtitle {
@@ -252,7 +257,8 @@
 
 /* Auth Section Styles */
 .launcher-auth-section {
-  margin-bottom: 14px; /* Compact margin */
+  margin-bottom: 10px; /* Compact margin */
+  width: 100%;
 }
 
 .auth-login-flow {
@@ -264,8 +270,8 @@
 
 /* Microsoft Login Button */
 .ms-login-btn {
-  width: 80% !important; /* Width: 80% of panel */
-  height: 44px !important; /* Compact height */
+  width: 100% !important; /* Full panel width without empty side gaps */
+  height: 42px !important; /* Compact height */
   margin: 0 auto;
 }
 
@@ -273,8 +279,8 @@
 .auth-divider {
   display: flex;
   align-items: center;
-  width: 80%;
-  margin: 10px 0; /* Compact margin */
+  width: 100%;
+  margin: 8px 0; /* Compact margin */
   color: rgba(169, 179, 199, 0.35);
   font-size: 10px;
   font-weight: 700;
@@ -294,27 +300,27 @@
 .offline-login-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 80%;
+  gap: 10px;
+  width: 100%;
   margin: 0 auto;
 }
 
 .offline-submit-btn {
-  height: 42px !important;
-  padding: 0 18px !important;
+  height: 40px !important;
+  padding: 0 16px !important;
   white-space: nowrap;
 }
 
 .remember-checkbox-wrapper {
-  width: 80%;
-  margin: 6px auto 0; /* Compact margin */
+  width: 100%;
+  margin: 4px auto 0; /* Compact margin */
   display: flex;
   justify-content: flex-start;
 }
 
 /* Logged In Profile UI */
 .user-profile-card {
-  width: 80%;
+  width: 100%;
   margin: 0 auto;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -322,7 +328,7 @@
   padding: 10px 14px; /* Compact padding */
   display: flex;
   flex-direction: column;
-  gap: 10px; /* Compact gap */
+  gap: 8px; /* Compact gap */
 }
 
 .user-profile-header {
@@ -556,14 +562,14 @@
 
 /* Version Selector Field */
 .launcher-version-section {
-  width: 80%;
-  margin: 0 auto 14px; /* Compact margin */
+  width: 100%;
+  margin: 0 auto 10px; /* Compact margin */
 }
 
 .aether-version-selector-container {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
@@ -698,8 +704,8 @@
 
 /* Settings Drawer inside main panel */
 .launcher-settings-drawer {
-  width: 80%;
-  margin: 0 auto 14px; /* Compact margin */
+  width: 100%;
+  margin: 0 auto 10px; /* Compact margin */
   background: rgba(255, 255, 255, 0.01);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 12px;
@@ -836,7 +842,7 @@
 
 /* Primary Action Section - Launch Button */
 .launcher-action-section {
-  width: 80%;
+  width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -986,8 +992,8 @@
 
 /* Console Logs Output */
 .game-console-drawer {
-  width: 80%;
-  margin: 16px auto 0;
+  width: 100%;
+  margin: 10px auto 0;
   background: rgba(7, 11, 20, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;

@@ -1,0 +1,33 @@
+{
+  "profiles": {
+    "1.8.9": {
+      "name": "Minecraft 1.8.9",
+      "type": "custom",
+      "created": "2026-01-01T00:00:00.000Z",
+      "lastUsed": "2026-01-01T00:00:00.000Z",
+      "icon": "Crafting_Table",
+      "lastVersionId": "1.8.9"
+    },
+    "1.7.10": {
+      "name": "Minecraft 1.7.10",
+      "type": "custom",
+      "created": "2026-01-01T00:00:00.000Z",
+      "lastUsed": "2026-01-01T00:00:00.000Z",
+      "icon": "Furnace",
+      "lastVersionId": "1.7.10"
+    }
+  },
+  "settings": {
+    "crashAssistant": true,
+    "enableAdvanced": true,
+    "enableAnalytics": false,
+    "enableHistorical": true,
+    "enableReleases": true,
+    "enableSnapshots": false,
+    "keepLauncherOpen": false,
+    "profileSorting": "byName",
+    "showMenu": false,
+    "showNews": false
+  },
+  "version": 3
+}

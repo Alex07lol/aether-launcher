@@ -19,7 +19,7 @@ function formatBytes(bytes: number): string {
 
 export const ModManager: React.FC = () => {
   const { settings, selectedVersion } = useLauncherStore();
-  const minecraftDir = settings.minecraftDir || `${window?.location?.origin ? '' : '/home/aether'}/.minecraft`;
+  const minecraftDir = settings.minecraftDir || `${window?.location?.origin ? '' : '/home/aether'}/.aether-launcher`;
   const versionId = selectedVersion || '1.8.9';
 
   const [mods, setMods] = useState<ModEntry[]>([]);

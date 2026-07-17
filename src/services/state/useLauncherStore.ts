@@ -41,6 +41,8 @@ export interface LauncherSettings {
   fullScreen: boolean;
   theme: 'blue-glass' | 'carbon-black' | 'nebula-purple';
   enableBetaVersions: boolean;
+  enableIntelPerf: boolean;
+  jvmArgs: string;
   language: 'en' | 'es' | 'de';
 }
 
@@ -139,6 +141,8 @@ export const useLauncherStore = create<LauncherState>((set) => ({
     fullScreen: false,
     theme: 'blue-glass',
     enableBetaVersions: false,
+    enableIntelPerf: true,
+    jvmArgs: '-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=32M -XX:+AlwaysPreTouch',
     language: 'en',
   },
   updateSettings: (newSettings) =>

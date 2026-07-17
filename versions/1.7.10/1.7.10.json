@@ -1,0 +1,16 @@
+{
+  "id": "1.7.10",
+  "type": "release",
+  "mainClass": "net.minecraft.client.main.Main",
+  "assets": "1.7.10",
+  "complianceLevel": 0,
+  "downloads": {
+    "client": {
+      "sha1": "ed5d8789ed29872ea2ef1c348302b0c55e3f3468",
+      "size": 5262334,
+      "url": "https://launcher.mojang.com/v1/objects/ed5d8789ed29872ea2ef1c348302b0c55e3f3468/client.jar"
+    }
+  },
+  "releaseTime": "2014-06-26T13:46:42+00:00",
+  "time": "2014-06-26T13:46:42+00:00"
+}

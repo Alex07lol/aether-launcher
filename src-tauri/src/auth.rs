@@ -81,10 +81,22 @@ struct MinecraftLoginRequest {
 }
 
 #[derive(Deserialize)]
-struct MinecraftLoginResponse {
+struct MinecraftAuthTokenResponse {
     access_token: String,
-    username: String,
+}
+
+#[derive(Deserialize)]
+struct MinecraftProfileResponse {
     id: String,
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct XstsErrorResponse {
+    #[serde(rename = "XErr")]
+    xerr: Option<u64>,
+    #[serde(rename = "Message")]
+    message: Option<String>,
 }
 
 // Scramble/Encryption key for storing tokens securely
@@ -104,7 +116,7 @@ fn get_token_file_path() -> PathBuf {
             path = PathBuf::from(home);
         }
     }
-    path.push(".minecraft");
+    path.push(".aether-launcher");
     path.push("aether_auth.bin");
     path
 }
@@ -304,9 +316,9 @@ pub async fn login_refresh() -> Result<AuthProfile, String> {
     authenticate_minecraft_flow(&client, &ms_tokens.access_token).await
 }
 
-// Inner flow: MS Access Token -> Xbox Live -> XSTS -> Minecraft Services
+// Inner flow: MS Access Token -> Xbox Live -> XSTS -> Minecraft Services -> Minecraft Profile
 async fn authenticate_minecraft_flow(client: &Client, ms_access_token: &str) -> Result<AuthProfile, String> {
-    // 3. Authenticate with Xbox Live
+    // 1. Authenticate with Xbox Live
     let xbl_req = XboxLiveRequest {
         properties: XboxLiveProperties {
             auth_method: "RPS".to_string(),
@@ -319,10 +331,16 @@ async fn authenticate_minecraft_flow(client: &Client, ms_access_token: &str) -> 
 
     let xbl_res = client
         .post("https://user.auth.xboxlive.com/user/authenticate")
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
         .json(&xbl_req)
         .send()
         .await
         .map_err(|e| format!("Xbox Live Authentication request failed: {}", e))?;
+
+    if !xbl_res.status().is_success() {
+        return Err(format!("Xbox Live authentication returned error status: {}", xbl_res.status()));
+    }
 
     let xbl_data = xbl_res
         .json::<XboxLiveResponse>()
@@ -335,9 +353,9 @@ async fn authenticate_minecraft_flow(client: &Client, ms_access_token: &str) -> 
         .get("xui")
         .and_then(|xui| xui.first())
         .and_then(|claim| claim.get("uhs"))
-        .ok_or_else(|| "Could not find user hash (uhs) in Xbox Live claim claims".to_string())?;
+        .ok_or_else(|| "Could not find user hash (uhs) in Xbox Live claims".to_string())?;
 
-    // 4. Authenticate XSTS
+    // 2. Authenticate XSTS
     let xsts_req = XstsRequest {
         properties: XstsProperties {
             sandbox_id: "RETAIL".to_string(),
@@ -349,37 +367,97 @@ async fn authenticate_minecraft_flow(client: &Client, ms_access_token: &str) -> 
 
     let xsts_res = client
         .post("https://xsts.auth.xboxlive.com/xsts/authorize")
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
         .json(&xsts_req)
         .send()
         .await
         .map_err(|e| format!("XSTS authentication request failed: {}", e))?;
+
+    if !xsts_res.status().is_success() {
+        if let Ok(err_body) = xsts_res.json::<XstsErrorResponse>().await {
+            match err_body.xerr {
+                Some(2148916233) => return Err("Account does not have an Xbox profile. Please log into xbox.com to create one.".to_string()),
+                Some(2148916235) => return Err("Xbox Live is not available in your region.".to_string()),
+                Some(2148916238) => return Err("Account is a child account and requires parental approval in a Microsoft Family group.".to_string()),
+                _ => if let Some(msg) = err_body.message { return Err(format!("XSTS error: {}", msg)); }
+            }
+        }
+        return Err("XSTS authentication failed. Please check your Microsoft account status.".to_string());
+    }
 
     let xsts_data = xsts_res
         .json::<XboxLiveResponse>()
         .await
         .map_err(|e| format!("Failed to parse XSTS token response: {}", e))?;
 
-    // 5. Minecraft Services Login
+    // 3. Minecraft Services Token Exchange
     let mc_req = MinecraftLoginRequest {
         identity_token: format!("XBL3.0 x={};{}", user_hash, xsts_data.token),
     };
 
     let mc_res = client
         .post("https://api.minecraftservices.com/authentication/login_with_xbox")
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
         .json(&mc_req)
         .send()
         .await
         .map_err(|e| format!("Minecraft login with Xbox failed: {}", e))?;
 
-    let mc_data = mc_res
-        .json::<MinecraftLoginResponse>()
+    if !mc_res.status().is_success() {
+        return Err(format!("Minecraft authentication server returned status code: {}", mc_res.status()));
+    }
+
+    let mc_tokens = mc_res
+        .json::<MinecraftAuthTokenResponse>()
         .await
         .map_err(|e| format!("Failed to parse Minecraft authentication response: {}", e))?;
 
+    // 4. Retrieve Minecraft Profile (Username & UUID)
+    let profile_res = client
+        .get("https://api.minecraftservices.com/minecraft/profile")
+        .header("Authorization", format!("Bearer {}", mc_tokens.access_token))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch Minecraft user profile: {}", e))?;
+
+    if profile_res.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err("This Microsoft account does not own Minecraft Java Edition.".to_string());
+    }
+
+    if !profile_res.status().is_success() {
+        return Err(format!("Minecraft profile endpoint returned status code: {}", profile_res.status()));
+    }
+
+    let mc_profile = profile_res
+        .json::<MinecraftProfileResponse>()
+        .await
+        .map_err(|e| format!("Failed to parse Minecraft profile JSON: {}", e))?;
+
     Ok(AuthProfile {
-        username: mc_data.username,
-        uuid: mc_data.id,
-        access_token: mc_data.access_token,
+        username: mc_profile.name,
+        uuid: mc_profile.id,
+        access_token: mc_tokens.access_token,
         user_type: "microsoft".to_string(),
     })
+}
+
+#[tauri::command]
+pub fn save_accounts_json(json_content: String) -> Result<(), String> {
+    // Write accounts.json to current working dir, .minecraft and .aether-launcher
+    let targets = [
+        PathBuf::from("accounts.json"),
+        PathBuf::from(".minecraft/accounts.json"),
+        PathBuf::from(".aether-launcher/accounts.json"),
+    ];
+
+    for path in targets.iter() {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(path, &json_content);
+    }
+
+    Ok(())
 }

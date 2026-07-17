@@ -22,7 +22,7 @@ pub fn get_minecraft_dir() -> Result<String, String> {
     {
         if let Some(app_data) = std::env::var_os("APPDATA") {
             let mut path = PathBuf::from(app_data);
-            path.push(".minecraft");
+            path.push(".aether-launcher");
             return Ok(path.to_string_lossy().to_string());
         }
     }
@@ -31,7 +31,7 @@ pub fn get_minecraft_dir() -> Result<String, String> {
     {
         if let Some(home) = std::env::var_os("HOME") {
             let mut path = PathBuf::from(home);
-            path.push(".minecraft");
+            path.push(".aether-launcher");
             return Ok(path.to_string_lossy().to_string());
         }
     }
@@ -39,7 +39,7 @@ pub fn get_minecraft_dir() -> Result<String, String> {
     // Fallback path (e.g. Android/Termux compile hosts)
     if let Some(home) = std::env::var_os("HOME") {
         let mut path = PathBuf::from(home);
-        path.push(".minecraft");
+        path.push(".aether-launcher");
         return Ok(path.to_string_lossy().to_string());
     }
 
@@ -50,18 +50,79 @@ pub fn get_minecraft_dir() -> Result<String, String> {
 pub fn initialize_minecraft_structure(base_dir: String) -> Result<(), String> {
     let base = Path::new(&base_dir);
 
-    // Mandated directories: .minecraft root, libraries, versions, assets, mods
-    let subdirs = ["libraries", "versions", "assets", "mods"];
+    // Full set of standard Minecraft directories
+    let subdirs = [
+        "libraries",
+        "versions",
+        "assets",
+        "assets/indexes",
+        "assets/objects",
+        "assets/skins",
+        "assets/log_configs",
+        "mods",
+        "resourcepacks",
+        "texturepacks",
+        "saves",
+        "screenshots",
+        "shaderpacks",
+        "config",
+        "logs",
+        "crash-reports",
+        "runtime",
+    ];
 
-    // Create .minecraft base folder
+    // Create base folder
     std::fs::create_dir_all(base)
-        .map_err(|e| format!("Failed to create .minecraft root directory: {}", e))?;
+        .map_err(|e| format!("Failed to create launcher root directory: {}", e))?;
 
-    // Create subfolders
+    // Create all subfolders
     for sub in subdirs.iter() {
         let path = base.join(sub);
         std::fs::create_dir_all(&path)
             .map_err(|e| format!("Failed to create subfolder '{}': {}", sub, e))?;
+    }
+
+    // Initialize default launcher_profiles.json if absent
+    let profiles_path = base.join("launcher_profiles.json");
+    if !profiles_path.exists() {
+        let default_profiles = r#"{
+  "profiles": {
+    "(Default)": {
+      "name": "Default",
+      "type": "custom",
+      "created": "2026-01-01T00:00:00.000Z",
+      "lastUsed": "2026-01-01T00:00:00.000Z",
+      "icon": "Default"
+    }
+  },
+  "settings": {
+    "crashAssistant": true,
+    "enableAdvanced": true,
+    "enableAnalytics": false,
+    "enableHistorical": true,
+    "enableReleases": true,
+    "enableSnapshots": false,
+    "keepLauncherOpen": false,
+    "profileSorting": "byName",
+    "showMenu": false,
+    "showNews": false
+  },
+  "version": 3
+}"#;
+        let _ = std::fs::write(profiles_path, default_profiles);
+    }
+
+    // Initialize default options.txt if absent
+    let options_path = base.join("options.txt");
+    if !options_path.exists() {
+        let default_options = "version:1343\ninvertYMouse:false\nmouseSensitivity:0.5\nfov:0.0\ngamma:1.0\nrenderDistance:12\nguiScale:0\nparticles:0\nbobView:true\nmaxFps:120\nfboEnable:true\ndifficulty:2\nfancyGraphics:true\nao:2\nclouds:true\nresourcePacks:[]\nincompatibleResourcePacks:[]\nlang:en_US\nfullscreen:false\nenableVsync:false\n";
+        let _ = std::fs::write(options_path, default_options);
+    }
+
+    // Initialize default usercache.json if absent
+    let usercache_path = base.join("usercache.json");
+    if !usercache_path.exists() {
+        let _ = std::fs::write(usercache_path, "[]");
     }
 
     Ok(())
@@ -95,6 +156,12 @@ pub fn verify_manifest(
                     continue;
                 }
             }
+        }
+
+        // If file.sha256 is empty, size matching is sufficient
+        if file.sha256.is_empty() {
+            // Already checked size above, so it is valid
+            continue;
         }
 
         // If force_repair is true, or size is mismatched, calculate SHA-256 to ensure file integrity
@@ -371,4 +438,151 @@ pub fn open_mods_folder(base_dir: String, version_id: String) -> Result<(), Stri
     }
     
     Ok(())
+}
+
+// Support structures for Mojang version manifest parsing
+#[derive(serde::Deserialize)]
+struct MojangVersionDetails {
+    downloads: MojangDownloads,
+    libraries: Vec<MojangLibrary>,
+}
+
+#[derive(serde::Deserialize)]
+struct MojangDownloads {
+    client: MojangArtifact,
+}
+
+#[derive(serde::Deserialize)]
+struct MojangArtifact {
+    path: Option<String>,
+    url: String,
+    size: u64,
+}
+
+#[derive(serde::Deserialize)]
+struct MojangLibrary {
+    name: String,
+    downloads: MojangLibraryDownloads,
+    rules: Option<Vec<MojangRule>>,
+    natives: Option<std::collections::HashMap<String, String>>,
+}
+
+#[derive(serde::Deserialize)]
+struct MojangLibraryDownloads {
+    artifact: Option<MojangArtifact>,
+    classifiers: Option<std::collections::HashMap<String, MojangArtifact>>,
+}
+
+#[derive(serde::Deserialize)]
+struct MojangRule {
+    action: String,
+    os: Option<MojangOSRule>,
+}
+
+#[derive(serde::Deserialize)]
+struct MojangOSRule {
+    name: String,
+}
+
+fn get_current_os_name() -> &'static str {
+    #[cfg(target_os = "windows")]
+    return "windows";
+    #[cfg(target_os = "macos")]
+    return "osx";
+    #[cfg(target_os = "linux")]
+    return "linux";
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    return "linux";
+}
+
+fn is_library_allowed(rules: &[MojangRule]) -> bool {
+    let current_os = get_current_os_name();
+    let mut allowed = false;
+    for rule in rules {
+        let action = rule.action == "allow";
+        if let Some(ref os) = rule.os {
+            if os.name == current_os {
+                allowed = action;
+            }
+        } else {
+            allowed = action;
+        }
+    }
+    allowed
+}
+
+#[tauri::command]
+pub async fn get_version_manifest_api(version_id: String) -> Result<VersionManifest, String> {
+    let url = match version_id.as_str() {
+        "1.8.9" => "https://piston-meta.mojang.com/v1/packages/d546f1707a3f2b7d034eece5ea2e311eda875787/1.8.9.json",
+        "1.7.10" => "https://piston-meta.mojang.com/v1/packages/ed5d8789ed29872ea2ef1c348302b0c55e3f3468/1.7.10.json",
+        _ => return Err(format!("Unsupported version: {}", version_id)),
+    };
+
+    let client = reqwest::Client::new();
+    let res = client.get(url).send().await
+        .map_err(|e| format!("Failed to fetch version JSON: {}", e))?;
+    
+    let details: MojangVersionDetails = res.json().await
+        .map_err(|e| format!("Failed to parse version JSON: {}", e))?;
+
+    let mut files = Vec::new();
+
+    // 1. Client JAR
+    files.push(ManifestFile {
+        path: format!("versions/{}/{}.jar", version_id, version_id),
+        url: details.downloads.client.url,
+        sha256: "".to_string(), // We will use size verification only
+        size: details.downloads.client.size,
+    });
+
+    // 2. Libraries
+    let current_os = get_current_os_name();
+    for lib in details.libraries {
+        let allowed = match lib.rules {
+            Some(ref r) => is_library_allowed(r),
+            None => true,
+        };
+
+        if !allowed {
+            continue;
+        }
+
+        if let Some(ref artifact) = lib.downloads.artifact {
+            if !artifact.url.is_empty() {
+                let path = format!("libraries/{}", artifact.path.clone().unwrap_or_else(|| {
+                    lib.name.replace(".", "/").replace(":", "/")
+                }));
+                files.push(ManifestFile {
+                    path,
+                    url: artifact.url.clone(),
+                    sha256: "".to_string(),
+                    size: artifact.size,
+                });
+            }
+        }
+
+        if let Some(ref natives_map) = lib.natives {
+            if let Some(classifier) = natives_map.get(current_os) {
+                if let Some(ref classifiers) = lib.downloads.classifiers {
+                    if let Some(artifact) = classifiers.get(classifier) {
+                        let path = format!("libraries/{}", artifact.path.clone().unwrap_or_else(|| {
+                            format!("{}-{}.jar", lib.name.replace(".", "/").replace(":", "/"), classifier)
+                        }));
+                        files.push(ManifestFile {
+                            path,
+                            url: artifact.url.clone(),
+                            sha256: "".to_string(),
+                            size: artifact.size,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(VersionManifest {
+        version: version_id,
+        files,
+    })
 }

@@ -64,7 +64,7 @@ class SettingsService implements ISettingsService {
       }
     }
     // Fallback/Browser path
-    return '/home/aether/.minecraft';
+    return '/home/aether/.aether-launcher';
   }
 }
 

@@ -45,12 +45,16 @@ fn main() {
             auth::login_refresh,
             auth::clear_secure_token,
             auth::load_secure_token,
+            auth::save_accounts_json,
             launcher::detect_or_install_java,
+            launcher::detect_intel_cpu,
+            launcher::get_system_ram,
             launcher::launch_game,
             installer::list_mods,
             installer::install_mod_bytes,
             installer::remove_mod,
-            installer::open_mods_folder
+            installer::open_mods_folder,
+            installer::get_version_manifest_api
         ])
         .setup(|app| {
             // Retrieve main window instance
