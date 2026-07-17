@@ -58,7 +58,89 @@ pub async fn check_and_update_launcher(app: AppHandle) -> Result<String, String>
         message: format!("Downloading launcher update v{}...", latest_version),
     });
 
-    // Find the correct asset
+    // Check if system has pacman (Arch Linux)
+    let has_pacman = std::process::Command::new("which")
+        .arg("pacman")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    let pacman_asset = if has_pacman {
+        release.assets.iter().find(|a| a.name.ends_with(".pkg.tar.zst"))
+    } else {
+        None
+    };
+
+    if let Some(asset) = pacman_asset {
+        let download_res = client
+            .get(&asset.browser_download_url)
+            .header(USER_AGENT, "Aether-Launcher-Updater")
+            .send()
+            .await
+            .map_err(|e| format!("Failed to download update: {}", e))?;
+
+        let bytes = download_res
+            .bytes()
+            .await
+            .map_err(|e| format!("Failed to read update bytes: {}", e))?;
+
+        let mut temp_path = env::temp_dir();
+        temp_path.push(&asset.name);
+
+        fs::write(&temp_path, &bytes).map_err(|e| format!("Failed to write package file: {}", e))?;
+
+        let _ = app.emit("launcher-update-progress", UpdateProgress {
+            status: "installing".to_string(),
+            message: "Running pacman -U to update package...".to_string(),
+        });
+
+        // Run pkexec pacman -U or sudo pacman -U
+        let temp_str = temp_path.to_string_lossy().to_string();
+        
+        let pkexec_res = tokio::process::Command::new("pkexec")
+            .arg("pacman")
+            .arg("-U")
+            .arg("--noconfirm")
+            .arg(&temp_str)
+            .status()
+            .await;
+
+        let installed = match pkexec_res {
+            Ok(status) => status.success(),
+            Err(_) => false,
+        };
+
+        if !installed {
+            let sudo_res = tokio::process::Command::new("sudo")
+                .arg("pacman")
+                .arg("-U")
+                .arg("--noconfirm")
+                .arg(&temp_str)
+                .status()
+                .await;
+
+            if let Ok(status) = sudo_res {
+                if !status.success() {
+                    let _ = fs::remove_file(&temp_path);
+                    return Err(format!("Pacman update failed with exit code {}", status));
+                }
+            } else {
+                let _ = fs::remove_file(&temp_path);
+                return Err("Failed to execute pacman update command.".to_string());
+            }
+        }
+
+        let _ = fs::remove_file(&temp_path);
+
+        let _ = app.emit("launcher-update-progress", UpdateProgress {
+            status: "completed".to_string(),
+            message: "Arch package updated successfully. Restarting...".to_string(),
+        });
+
+        std::process::exit(0);
+    }
+
+    // Default fallback (Windows or standard Linux binary)
     let os = std::env::consts::OS;
     let target_asset_name = match os {
         "windows" => "aether-launcher.exe",

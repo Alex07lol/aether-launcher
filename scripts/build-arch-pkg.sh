@@ -16,9 +16,11 @@ rustup default stable
 npm ci
 npx tauri build --no-bundle
 
-cat << 'PKGBUILD_EOF' > PKGBUILD
+VERSION=$(grep -m1 '^version = ' src-tauri/Cargo.toml | cut -d '"' -f2 || echo "1.0.0")
+
+cat << PKGBUILD_EOF > PKGBUILD
 pkgname=aether-launcher
-pkgver=0.1.0
+pkgver=${VERSION}
 pkgrel=1
 pkgdesc="Aether Launcher"
 arch=("x86_64")
