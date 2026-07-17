@@ -215,6 +215,46 @@ pub fn get_forge_version(mc_version: String) -> Result<String, String> {
     }
 }
 
+#[derive(serde::Deserialize)]
+struct ForgeProfileJson {
+    #[serde(rename = "versionInfo")]
+    version_info: ForgeVersionInfo,
+    install: ForgeInstallData,
+}
+
+#[derive(serde::Deserialize)]
+struct ForgeInstallData {
+    #[serde(rename = "filePath")]
+    file_path: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct ForgeVersionInfo {
+    libraries: Vec<ForgeLibraryItem>,
+}
+
+#[derive(serde::Deserialize)]
+struct ForgeLibraryItem {
+    name: String,
+    url: Option<String>,
+}
+
+fn parse_maven_name(name: &str) -> Option<(PathBuf, String)> {
+    let parts: Vec<&str> = name.split(':').collect();
+    if parts.len() < 3 {
+        return None;
+    }
+    let group = parts[0].replace('.', "/");
+    let artifact = parts[1];
+    let version = parts[2];
+
+    let filename = format!("{}-{}.jar", artifact, version);
+    let rel_path = PathBuf::from(&group).join(artifact).join(version).join(&filename);
+    let maven_subpath = format!("{}/{}/{}/{}", group, artifact, version, filename);
+
+    Some((rel_path, maven_subpath))
+}
+
 #[tauri::command]
 pub async fn install_forge(
     app: AppHandle,
@@ -225,28 +265,21 @@ pub async fn install_forge(
     let lib_dir = Path::new(&minecraft_dir).join("libraries");
     std::fs::create_dir_all(&lib_dir).map_err(|e| format!("Failed to create libraries directory: {}", e))?;
 
-    // The actual installed Forge jar path
     let forge_lib_dir = lib_dir
         .join("net")
         .join("minecraftforge")
         .join("forge")
         .join(format!("{}-{}-{}", mc_version, forge_version, mc_version));
 
-    if forge_lib_dir.exists() {
+    let universal_jar_name = format!("forge-{}-{}-{}.jar", mc_version, forge_version, mc_version);
+
+    if forge_lib_dir.exists() && forge_lib_dir.join(&universal_jar_name).exists() {
         let _ = app.emit("forge-progress", ForgeProgress {
             status: "completed".to_string(),
             progress: 100,
             message: "Forge is already installed.".to_string(),
         });
         return Ok(());
-    }
-
-    let installer_name = format!("forge-{}-{}-installer.jar", mc_version, forge_version);
-    let installer_path = lib_dir.join(&installer_name);
-
-    // Remove old installer jar if it exists to prevent corruption or skipping
-    if installer_path.exists() {
-        let _ = std::fs::remove_file(&installer_path);
     }
 
     // 1. Emit downloading event
@@ -296,43 +329,71 @@ pub async fn install_forge(
         format!("Failed to read downloaded bytes: {}", e)
     })?;
 
-    // 2. Save the installer jar itself
-    std::fs::write(&installer_path, &bytes).map_err(|e| {
-        let _ = app.emit("forge-progress", ForgeProgress {
-            status: "failed".to_string(),
-            progress: 0,
-            message: format!("Failed to write installer jar to disk: {}", e),
-        });
-        format!("Failed to write installer jar to disk: {}", e)
-    })?;
+    // 2. Extract installer zip contents (universal jar + parse install_profile.json)
+    let reader = std::io::Cursor::new(&bytes);
+    let mut archive = zip::ZipArchive::new(reader).map_err(|e| format!("Invalid zip archive: {}", e))?;
 
-    // 3. Emit extracting event
-    let _ = app.emit("forge-progress", ForgeProgress {
-        status: "extracting".to_string(),
-        progress: 60,
-        message: "Running Forge Installer (this may take a minute)...".to_string(),
-    });
+    // Extract install_profile.json
+    let profile_content = {
+        let mut profile_file = archive.by_name("install_profile.json").map_err(|e| format!("Missing install_profile.json: {}", e))?;
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut profile_file, &mut content).map_err(|e| format!("Failed to read install_profile.json: {}", e))?;
+        content
+    };
 
-    // 4. Run the installer jar with Java
-    let java_path = crate::launcher::detect_or_install_java(app.clone()).await?;
+    let profile: ForgeProfileJson = serde_json::from_str(&profile_content).map_err(|e| format!("Failed to parse install_profile.json: {}", e))?;
 
-    let status = tokio::process::Command::new(java_path)
-        .arg("-jar")
-        .arg(&installer_path)
-        .arg("--installClient")
-        .arg(&minecraft_dir)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .map_err(|e| format!("Failed to execute Java: {}", e))?;
+    // Extract universal forge jar into libraries/net/minecraftforge/forge/{version}/...
+    std::fs::create_dir_all(&forge_lib_dir).ok();
+    let universal_dest = forge_lib_dir.join(&universal_jar_name);
 
-    if !status.success() {
-        let _ = std::fs::remove_file(&installer_path); // Remove so it triggers again next time
-        return Err(format!("Forge installer failed with exit code: {}", status));
+    let inner_jar_name = profile.install.file_path.unwrap_or_else(|| format!("forge-{}-{}-{}-universal.jar", mc_version, forge_version, mc_version));
+
+    if let Ok(mut inner_jar) = archive.by_name(&inner_jar_name) {
+        if let Ok(mut out_file) = std::fs::File::create(&universal_dest) {
+            let _ = std::io::copy(&mut inner_jar, &mut out_file);
+        }
     }
 
-    // 5. Emit completed event
+    // 3. Download required libraries from Maven/Mojang mirrors
+    let total_libs = profile.version_info.libraries.len();
+    for (idx, lib) in profile.version_info.libraries.iter().enumerate() {
+        if let Some((rel_path, maven_subpath)) = parse_maven_name(&lib.name) {
+            let full_dest = lib_dir.join(&rel_path);
+            if !full_dest.exists() {
+                if let Some(parent) = full_dest.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+
+                let _ = app.emit("forge-progress", ForgeProgress {
+                    status: "extracting".to_string(),
+                    progress: 40 + ((idx as f32 / total_libs as f32) * 50.0) as u32,
+                    message: format!("Downloading Forge library ({}/{}): {}", idx + 1, total_libs, lib.name),
+                });
+
+                let mut urls = Vec::new();
+                if let Some(ref custom_url) = lib.url {
+                    urls.push(format!("{}{}", custom_url, maven_subpath));
+                }
+                urls.push(format!("https://libraries.minecraft.net/{}", maven_subpath));
+                urls.push(format!("https://maven.minecraftforge.net/{}", maven_subpath));
+                urls.push(format!("https://repo1.maven.org/maven2/{}", maven_subpath));
+
+                for download_url in urls {
+                    if let Ok(dl_res) = client.get(&download_url).send().await {
+                        if dl_res.status().is_success() {
+                            if let Ok(dl_bytes) = dl_res.bytes().await {
+                                let _ = std::fs::write(&full_dest, &dl_bytes);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Emit completed event
     let _ = app.emit("forge-progress", ForgeProgress {
         status: "completed".to_string(),
         progress: 100,
