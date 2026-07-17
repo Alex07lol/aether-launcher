@@ -7,6 +7,7 @@ mod downloader;
 mod installer;
 mod auth;
 mod launcher;
+mod mods;
 
 // A placeholder greet command for frontend IPC testing
 #[tauri::command]
@@ -50,11 +51,12 @@ fn main() {
             launcher::detect_intel_cpu,
             launcher::get_system_ram,
             launcher::launch_game,
-            installer::list_mods,
-            installer::install_mod_bytes,
-            installer::remove_mod,
-            installer::open_mods_folder,
-            installer::get_version_manifest_api
+            installer::get_version_manifest_api,
+            mods::check_and_update_aether_mod,
+            mods::list_mods,
+            mods::remove_mod,
+            mods::install_mod_bytes,
+            mods::open_mods_folder
         ])
         .setup(|app| {
             // Retrieve main window instance

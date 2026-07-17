@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Trash2, FolderOpen, Package, Upload, X } from 'lucide-react';
+import { Trash2, FolderOpen, Package, Upload, X, Lock, RefreshCw } from 'lucide-react';
 import { useLauncherStore } from '../services/state/useLauncherStore';
 
 interface ModEntry {
   filename: string;
   size: number;
   path: string;
+  is_protected: boolean;
 }
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -25,9 +26,27 @@ export const ModManager: React.FC = () => {
   const [mods, setMods] = useState<ModEntry[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateStatusMsg, setUpdateStatusMsg] = useState<string | null>(null);
   const [installingName, setInstallingName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const checkAetherRelease = useCallback(async () => {
+    if (!isTauri) return;
+    setIsCheckingUpdate(true);
+    try {
+      const res = await invoke<string>('check_and_update_aether_mod', {
+        baseDir: minecraftDir,
+        versionId,
+      });
+      setUpdateStatusMsg(res);
+    } catch (e: any) {
+      console.error('[ModManager] Failed to check Aether mod update:', e);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  }, [minecraftDir, versionId]);
 
   const refreshMods = useCallback(async () => {
     if (!isTauri) return;
@@ -43,8 +62,10 @@ export const ModManager: React.FC = () => {
   }, [minecraftDir, versionId]);
 
   useEffect(() => {
-    if (isExpanded) refreshMods();
-  }, [isExpanded, refreshMods, versionId]);
+    if (isTauri) {
+      checkAetherRelease().then(() => refreshMods());
+    }
+  }, [checkAetherRelease, refreshMods, versionId]);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || !isTauri) return;
@@ -87,8 +108,13 @@ export const ModManager: React.FC = () => {
     await handleFiles(e.dataTransfer.files);
   };
 
-  const handleRemoveMod = async (filename: string) => {
+  const handleRemoveMod = async (filename: string, isProtected: boolean) => {
     if (!isTauri) return;
+    if (isProtected) {
+      setError('This mod is unremovable as it is a required core mod for 1.8.9.');
+      setTimeout(() => setError(null), 4000);
+      return;
+    }
     try {
       await invoke('remove_mod', { baseDir: minecraftDir, versionId, filename });
       await refreshMods();
@@ -104,6 +130,11 @@ export const ModManager: React.FC = () => {
     } catch (e: any) {
       console.error('Failed to open mods folder:', e);
     }
+  };
+
+  const handleManualCheckUpdate = async () => {
+    await checkAetherRelease();
+    await refreshMods();
   };
 
   return (
@@ -159,6 +190,13 @@ export const ModManager: React.FC = () => {
             )}
           </div>
 
+          {/* Update status banner */}
+          {updateStatusMsg && (
+            <div className="mod-update-banner">
+              <span>{updateStatusMsg}</span>
+            </div>
+          )}
+
           {/* Error message */}
           {error && (
             <div className="mod-error-banner">
@@ -171,19 +209,32 @@ export const ModManager: React.FC = () => {
           {mods.length > 0 ? (
             <div className="mod-list">
               {mods.map(mod => (
-                <div key={mod.filename} className="mod-list-item">
+                <div key={mod.filename} className={`mod-list-item ${mod.is_protected ? 'protected' : ''}`}>
                   <div className="mod-list-item-info">
-                    <span className="mod-filename">{mod.filename}</span>
+                    <div className="mod-filename-row">
+                      <span className="mod-filename">{mod.filename}</span>
+                      {mod.is_protected && (
+                        <span className="protected-badge" title="Core mod - Unremovable by user">
+                          <Lock size={10} /> Unremovable
+                        </span>
+                      )}
+                    </div>
                     <span className="mod-filesize">{formatBytes(mod.size)}</span>
                   </div>
-                  <button
-                    className="mod-remove-btn"
-                    onClick={() => handleRemoveMod(mod.filename)}
-                    title={`Remove ${mod.filename}`}
-                    type="button"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  {mod.is_protected ? (
+                    <div className="mod-locked-icon" title="Unremovable core mod">
+                      <Lock size={14} className="lock-icon" />
+                    </div>
+                  ) : (
+                    <button
+                      className="mod-remove-btn"
+                      onClick={() => handleRemoveMod(mod.filename, false)}
+                      title={`Remove ${mod.filename}`}
+                      type="button"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -192,7 +243,7 @@ export const ModManager: React.FC = () => {
           )}
 
           {/* Footer actions */}
-          <div className="mod-manager-footer">
+          <div className="mod-manager-footer" style={{ gap: '8px' }}>
             <button
               className="mod-folder-btn"
               onClick={handleOpenFolder}
@@ -200,6 +251,16 @@ export const ModManager: React.FC = () => {
             >
               <FolderOpen size={13} />
               Open Mods Folder
+            </button>
+            <button
+              className="mod-refresh-btn"
+              onClick={handleManualCheckUpdate}
+              disabled={isCheckingUpdate}
+              type="button"
+              title="Check Alex07lol/aether for latest release updates"
+            >
+              <RefreshCw size={13} className={isCheckingUpdate ? 'spin' : ''} />
+              {isCheckingUpdate ? 'Checking...' : 'Check Updates'}
             </button>
           </div>
         </div>

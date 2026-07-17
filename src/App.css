@@ -1253,3 +1253,13 @@
 .mod-manager-footer { display: flex; justify-content: flex-end; }
 .mod-folder-btn { background: none; border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; color: #A9B3C7; font-size: 11px; padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; }
 .mod-folder-btn:hover { background: rgba(255,255,255,0.04); color: #FFFFFF; border-color: rgba(255,255,255,0.12); }
+
+.mod-filename-row { display: flex; align-items: center; gap: 6px; }
+.mod-list-item.protected { background: rgba(58,168,255,0.05); border-color: rgba(58,168,255,0.15); }
+.protected-badge { display: inline-flex; align-items: center; gap: 3px; background: rgba(58,168,255,0.15); border: 1px solid rgba(58,168,255,0.3); color: #3AA8FF; font-size: 9px; font-weight: 700; padding: 2px 5px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+.mod-locked-icon { display: flex; align-items: center; justify-content: center; color: #3AA8FF; opacity: 0.8; padding: 4px; }
+.mod-update-banner { font-size: 11px; color: #3AA8FF; background: rgba(58,168,255,0.08); border: 1px solid rgba(58,168,255,0.2); border-radius: 6px; padding: 6px 10px; text-align: center; }
+.mod-refresh-btn { background: none; border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; color: #A9B3C7; font-size: 11px; padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; }
+.mod-refresh-btn:hover { background: rgba(58,168,255,0.1); color: #3AA8FF; border-color: rgba(58,168,255,0.3); }
+.spin { animation: spin 1s linear infinite; }
+

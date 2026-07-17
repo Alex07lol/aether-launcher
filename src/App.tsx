@@ -228,6 +228,19 @@ export const App: React.FC = () => {
         
         console.log(`[Launcher] Launching Minecraft: version=${selectedVersion}, RAM=${minMemory}-${maxMemory}MB, IntelPerf=${settings.enableIntelPerf}`);
         
+        if (isTauri) {
+          try {
+            setGameLogs((prev) => [...prev, '[Launcher] Checking latest Alex07lol/aether release mod...']);
+            const updateRes = await invoke<string>('check_and_update_aether_mod', {
+              baseDir: minecraftDir,
+              versionId: selectedVersion || '1.8.9',
+            });
+            setGameLogs((prev) => [...prev, `[Launcher] ${updateRes}`]);
+          } catch (e) {
+            console.warn('[Launcher] Mod update check notice:', e);
+          }
+        }
+
         await invoke('launch_game', {
           versionId: selectedVersion,
           minecraftDir,
