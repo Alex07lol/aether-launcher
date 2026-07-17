@@ -41,6 +41,8 @@ class SettingsService implements ISettingsService {
       theme: 'blue-glass',
       enableBetaVersions: false,
       language: 'en',
+      enableIntelPerf: false,
+      jvmArgs: '',
     };
     
     store.updateSettings(defaults);

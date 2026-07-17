@@ -52,7 +52,7 @@ jobs:
         run: npm ci
 
       - name: Build AppImage, DEB and Pacman
-        run: npx tauri build --bundles appimage,deb,pacman
+        run: npx tauri build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -109,13 +109,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload Pacman artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: aether-launcher-linux-pacman
-          path: src-tauri/target/release/bundle/pacman/*
-          if-no-files-found: error
-          retention-days: 30
 
       - name: Upload Raw Executable artifact
         uses: actions/upload-artifact@v4
@@ -132,6 +125,5 @@ jobs:
           files: |
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/pacman/*
             src-tauri/target/release/aether-launcher
           token: ${{ secrets.GITHUB_TOKEN }}
