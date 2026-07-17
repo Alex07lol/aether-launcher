@@ -285,8 +285,6 @@ pub async fn install_forge(
     })?;
 
     // 2. Save the installer jar itself
-    let installer_name = format!("forge-{}-{}-installer.jar", mc_version, forge_version);
-    let installer_path = lib_dir.join(&installer_name);
     std::fs::write(&installer_path, &bytes).map_err(|e| {
         let _ = app.emit("forge-progress", ForgeProgress {
             status: "failed".to_string(),
@@ -300,50 +298,29 @@ pub async fn install_forge(
     let _ = app.emit("forge-progress", ForgeProgress {
         status: "extracting".to_string(),
         progress: 60,
-        message: "Extracting Forge libraries...".to_string(),
+        message: "Running Forge Installer (this may take a minute)...".to_string(),
     });
 
-    let reader = std::io::Cursor::new(bytes);
-    let mut archive = zip::ZipArchive::new(reader).map_err(|e| {
-        let _ = app.emit("forge-progress", ForgeProgress {
-            status: "failed".to_string(),
-            progress: 0,
-            message: format!("Failed to read zip archive: {}", e),
-        });
-        format!("Failed to parse zip archive: {}", e)
-    })?;
+    // 4. Run the installer jar with Java
+    let java_path = crate::launcher::detect_or_install_java(app.clone()).await?;
 
-    // Extract all inner jar files to libraries directory
-    let archive_len = archive.len();
-    for i in 0..archive_len {
-        let mut file = match archive.by_index(i) {
-            Ok(file) => file,
-            Err(_) => continue,
-        };
+    let status = tokio::process::Command::new(java_path)
+        .arg("-jar")
+        .arg(&installer_path)
+        .arg("--installClient")
+        .arg(&minecraft_dir)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await
+        .map_err(|e| format!("Failed to execute Java: {}", e))?;
 
-        let name = file.name().to_string();
-        if name.ends_with(".jar") {
-            let path = Path::new(&name);
-            if let Some(filename) = path.file_name() {
-                let dest_path = lib_dir.join(filename);
-                if let Ok(mut dest_file) = std::fs::File::create(&dest_path) {
-                    let _ = std::io::copy(&mut file, &mut dest_file);
-                }
-            }
-        }
-
-        // Limit event emission frequency
-        if i % 10 == 0 || i == archive_len - 1 {
-            let progress_percent = 60 + ((i as f32 / archive_len as f32) * 30.0) as u32;
-            let _ = app.emit("forge-progress", ForgeProgress {
-                status: "extracting".to_string(),
-                progress: progress_percent,
-                message: format!("Extracting library {} of {}...", i + 1, archive_len),
-            });
-        }
+    if !status.success() {
+        let _ = std::fs::remove_file(&installer_path); // Remove so it triggers again next time
+        return Err(format!("Forge installer failed with exit code: {}", status));
     }
 
-    // 4. Emit completed event
+    // 5. Emit completed event
     let _ = app.emit("forge-progress", ForgeProgress {
         status: "completed".to_string(),
         progress: 100,
