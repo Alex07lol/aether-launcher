@@ -510,8 +510,6 @@ export const App: React.FC = () => {
           />
         </div>
 
-        </div>
-
         {/* Mod Manager - drag-and-drop, collapsible */}
         <div className="launcher-addon-section">
           <ModManager />
