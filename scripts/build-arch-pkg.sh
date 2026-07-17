@@ -13,7 +13,7 @@ chown -R builduser:builduser .
 sudo -H -u builduser bash << 'BUILDEOF'
 set -e
 npm ci
-npx tauri build --bundles none
+npx tauri build --no-bundle
 
 cat << 'PKGBUILD_EOF' > PKGBUILD
 pkgname=aether-launcher
