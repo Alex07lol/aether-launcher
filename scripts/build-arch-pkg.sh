@@ -10,7 +10,7 @@ passwd -d builduser
 printf 'builduser ALL=(ALL) ALL\n' | tee -a /etc/sudoers
 chown -R builduser:builduser .
 
-sudo -E -u builduser bash << 'BUILDEOF'
+sudo -H -u builduser bash << 'BUILDEOF'
 set -e
 npm ci
 npx tauri build --bundles none
