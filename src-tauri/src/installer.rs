@@ -225,16 +225,28 @@ pub async fn install_forge(
     let lib_dir = Path::new(&minecraft_dir).join("libraries");
     std::fs::create_dir_all(&lib_dir).map_err(|e| format!("Failed to create libraries directory: {}", e))?;
 
-    let installer_name = format!("forge-{}-{}-installer.jar", mc_version, forge_version);
-    let installer_path = lib_dir.join(&installer_name);
+    // The actual installed Forge jar path
+    let forge_lib_dir = lib_dir
+        .join("net")
+        .join("minecraftforge")
+        .join("forge")
+        .join(format!("{}-{}-{}", mc_version, forge_version, mc_version));
 
-    if installer_path.exists() {
+    if forge_lib_dir.exists() {
         let _ = app.emit("forge-progress", ForgeProgress {
             status: "completed".to_string(),
             progress: 100,
             message: "Forge is already installed.".to_string(),
         });
         return Ok(());
+    }
+
+    let installer_name = format!("forge-{}-{}-installer.jar", mc_version, forge_version);
+    let installer_path = lib_dir.join(&installer_name);
+
+    // Remove old installer jar if it exists to prevent corruption or skipping
+    if installer_path.exists() {
+        let _ = std::fs::remove_file(&installer_path);
     }
 
     // 1. Emit downloading event
