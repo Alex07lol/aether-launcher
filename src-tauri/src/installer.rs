@@ -272,8 +272,13 @@ pub async fn install_forge(
         .join(format!("{}-{}-{}", mc_version, forge_version, mc_version));
 
     let universal_jar_name = format!("forge-{}-{}-{}.jar", mc_version, forge_version, mc_version);
+    let universal_dest = forge_lib_dir.join(&universal_jar_name);
 
-    if forge_lib_dir.exists() && forge_lib_dir.join(&universal_jar_name).exists() {
+    let is_valid_universal = std::fs::metadata(&universal_dest)
+        .map(|m| m.len() > 1_000_000)
+        .unwrap_or(false);
+
+    if forge_lib_dir.exists() && is_valid_universal {
         let _ = app.emit("forge-progress", ForgeProgress {
             status: "completed".to_string(),
             progress: 100,
@@ -345,14 +350,37 @@ pub async fn install_forge(
 
     // Extract universal forge jar into libraries/net/minecraftforge/forge/{version}/...
     std::fs::create_dir_all(&forge_lib_dir).ok();
-    let universal_dest = forge_lib_dir.join(&universal_jar_name);
 
     let inner_jar_name = profile.install.file_path.unwrap_or_else(|| format!("forge-{}-{}-{}-universal.jar", mc_version, forge_version, mc_version));
 
+    let mut extracted = false;
     if let Ok(mut inner_jar) = archive.by_name(&inner_jar_name) {
         if let Ok(mut out_file) = std::fs::File::create(&universal_dest) {
-            let _ = std::io::copy(&mut inner_jar, &mut out_file);
+            if std::io::copy(&mut inner_jar, &mut out_file).is_ok() {
+                extracted = true;
+            }
         }
+    }
+
+    if !extracted {
+        for i in 0..archive.len() {
+            if let Ok(mut inner_file) = archive.by_index(i) {
+                let name = inner_file.name().to_string();
+                if name.ends_with(".jar") && (name.contains("universal") || name.contains("forge")) {
+                    if let Ok(mut out_file) = std::fs::File::create(&universal_dest) {
+                        let _ = std::io::copy(&mut inner_file, &mut out_file);
+                        let _ = extracted;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let final_size = std::fs::metadata(&universal_dest).map(|m| m.len()).unwrap_or(0);
+    if final_size < 1_000_000 {
+        let _ = std::fs::remove_file(&universal_dest);
+        return Err(format!("Failed to extract valid Forge universal jar (size: {} bytes)", final_size));
     }
 
     // 3. Download required libraries from Maven/Mojang mirrors
