@@ -263,6 +263,8 @@ export const App: React.FC = () => {
             setGameLogs((prev) => [...prev, '[Launcher] Forge installation verified.']);
           } catch (e) {
             setGameLogs((prev) => [...prev, `[Launcher] Forge check failed: ${e}`]);
+            setIsGameRunning(false);
+            return;
           }
         }
 

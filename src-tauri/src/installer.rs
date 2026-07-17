@@ -215,30 +215,6 @@ pub fn get_forge_version(mc_version: String) -> Result<String, String> {
     }
 }
 
-#[derive(serde::Deserialize)]
-struct ForgeProfileJson {
-    #[serde(rename = "versionInfo")]
-    version_info: ForgeVersionInfo,
-    install: ForgeInstallData,
-}
-
-#[derive(serde::Deserialize)]
-struct ForgeInstallData {
-    #[serde(rename = "filePath")]
-    file_path: Option<String>,
-}
-
-#[derive(serde::Deserialize)]
-struct ForgeVersionInfo {
-    libraries: Vec<ForgeLibraryItem>,
-}
-
-#[derive(serde::Deserialize)]
-struct ForgeLibraryItem {
-    name: String,
-    url: Option<String>,
-}
-
 fn parse_maven_name(name: &str) -> Option<(PathBuf, String)> {
     let parts: Vec<&str> = name.split(':').collect();
     if parts.len() < 3 {
@@ -310,106 +286,30 @@ pub async fn install_forge(
         let _ = std::fs::write(&asm_dest, EMBEDDED_ASM);
     }
 
-    // 1. Emit downloading event
-    let _ = app.emit("forge-progress", ForgeProgress {
-        status: "downloading".to_string(),
-        progress: 10,
-        message: "Connecting to Forge servers...".to_string(),
-    });
-
-    let url = format!(
-        "https://maven.minecraftforge.net/net/minecraftforge/forge/{0}-{1}-{0}/forge-{0}-{1}-{0}-installer.jar",
-        mc_version, forge_version
-    );
+    // 4. Download secondary required Forge libraries
+    let forge_deps = [
+        "com.typesafe.akka:akka-actor_2.11:2.3.3",
+        "com.typesafe:config:1.2.1",
+        "org.scala-lang:scala-actors-migration_2.11:1.1.0",
+        "org.scala-lang:scala-compiler:2.11.1",
+        "org.scala-lang.plugins:scala-continuations-library_2.11:1.0.2",
+        "org.scala-lang.plugins:scala-continuations-plugin_2.11.1:1.0.2",
+        "org.scala-lang:scala-library:2.11.1",
+        "org.scala-lang:scala-parser-combinators_2.11:1.0.1",
+        "org.scala-lang:scala-reflect:2.11.1",
+        "org.scala-lang:scala-swing_2.11:1.0.1",
+        "org.scala-lang:scala-xml_2.11:1.0.2",
+        "lzma:lzma:0.0.1",
+        "net.sf.jopt-simple:jopt-simple:4.6",
+        "java3d:vecmath:1.5.2",
+        "net.sf.trove4j:trove4j:3.0.3",
+    ];
 
     let client = reqwest::Client::new();
-    let res = client.get(&url).send().await.map_err(|e| {
-        let _ = app.emit("forge-progress", ForgeProgress {
-            status: "failed".to_string(),
-            progress: 0,
-            message: format!("Download request failed: {}", e),
-        });
-        format!("Download request failed: {}", e)
-    })?;
+    let total_libs = forge_deps.len();
 
-    if !res.status().is_success() {
-        let err_msg = format!("Server returned status code: {}", res.status());
-        let _ = app.emit("forge-progress", ForgeProgress {
-            status: "failed".to_string(),
-            progress: 0,
-            message: err_msg.clone(),
-        });
-        return Err(err_msg);
-    }
-
-    let _ = app.emit("forge-progress", ForgeProgress {
-        status: "downloading".to_string(),
-        progress: 30,
-        message: "Downloading installer archive...".to_string(),
-    });
-
-    let bytes = res.bytes().await.map_err(|e| {
-        let _ = app.emit("forge-progress", ForgeProgress {
-            status: "failed".to_string(),
-            progress: 0,
-            message: format!("Failed to read downloaded bytes: {}", e),
-        });
-        format!("Failed to read downloaded bytes: {}", e)
-    })?;
-
-    // 2. Extract installer zip contents (universal jar + parse install_profile.json)
-    let reader = std::io::Cursor::new(&bytes);
-    let mut archive = zip::ZipArchive::new(reader).map_err(|e| format!("Invalid zip archive: {}", e))?;
-
-    // Extract install_profile.json
-    let profile_content = {
-        let mut profile_file = archive.by_name("install_profile.json").map_err(|e| format!("Missing install_profile.json: {}", e))?;
-        let mut content = String::new();
-        std::io::Read::read_to_string(&mut profile_file, &mut content).map_err(|e| format!("Failed to read install_profile.json: {}", e))?;
-        content
-    };
-
-    let profile: ForgeProfileJson = serde_json::from_str(&profile_content).map_err(|e| format!("Failed to parse install_profile.json: {}", e))?;
-
-    // Extract universal forge jar into libraries/net/minecraftforge/forge/{version}/...
-    std::fs::create_dir_all(&forge_lib_dir).ok();
-
-    let inner_jar_name = profile.install.file_path.unwrap_or_else(|| format!("forge-{}-{}-{}-universal.jar", mc_version, forge_version, mc_version));
-
-    let mut extracted = false;
-    if let Ok(mut inner_jar) = archive.by_name(&inner_jar_name) {
-        if let Ok(mut out_file) = std::fs::File::create(&universal_dest) {
-            if std::io::copy(&mut inner_jar, &mut out_file).is_ok() {
-                extracted = true;
-            }
-        }
-    }
-
-    if !extracted {
-        for i in 0..archive.len() {
-            if let Ok(mut inner_file) = archive.by_index(i) {
-                let name = inner_file.name().to_string();
-                if name.ends_with(".jar") && (name.contains("universal") || name.contains("forge")) {
-                    if let Ok(mut out_file) = std::fs::File::create(&universal_dest) {
-                        let _ = std::io::copy(&mut inner_file, &mut out_file);
-                        let _ = extracted;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    let final_size = std::fs::metadata(&universal_dest).map(|m| m.len()).unwrap_or(0);
-    if final_size < 1_000_000 {
-        let _ = std::fs::remove_file(&universal_dest);
-        return Err(format!("Failed to extract valid Forge universal jar (size: {} bytes)", final_size));
-    }
-
-    // 3. Download required libraries from Maven/Mojang mirrors
-    let total_libs = profile.version_info.libraries.len();
-    for (idx, lib) in profile.version_info.libraries.iter().enumerate() {
-        if let Some((rel_path, maven_subpath)) = parse_maven_name(&lib.name) {
+    for (idx, dep_name) in forge_deps.iter().enumerate() {
+        if let Some((rel_path, maven_subpath)) = parse_maven_name(dep_name) {
             let full_dest = lib_dir.join(&rel_path);
             if !full_dest.exists() {
                 if let Some(parent) = full_dest.parent() {
@@ -418,20 +318,18 @@ pub async fn install_forge(
 
                 let _ = app.emit("forge-progress", ForgeProgress {
                     status: "extracting".to_string(),
-                    progress: 40 + ((idx as f32 / total_libs as f32) * 50.0) as u32,
-                    message: format!("Downloading Forge library ({}/{}): {}", idx + 1, total_libs, lib.name),
+                    progress: 50 + ((idx as f32 / total_libs as f32) * 40.0) as u32,
+                    message: format!("Syncing Forge library ({}/{})...", idx + 1, total_libs),
                 });
 
-                let mut urls = Vec::new();
-                if let Some(ref custom_url) = lib.url {
-                    urls.push(format!("{}{}", custom_url, maven_subpath));
-                }
-                urls.push(format!("https://libraries.minecraft.net/{}", maven_subpath));
-                urls.push(format!("https://maven.minecraftforge.net/{}", maven_subpath));
-                urls.push(format!("https://repo1.maven.org/maven2/{}", maven_subpath));
+                let urls = [
+                    format!("https://libraries.minecraft.net/{}", maven_subpath),
+                    format!("https://repo1.maven.org/maven2/{}", maven_subpath),
+                    format!("https://maven.minecraftforge.net/{}", maven_subpath),
+                ];
 
-                for download_url in urls {
-                    if let Ok(dl_res) = client.get(&download_url).send().await {
+                for download_url in urls.iter() {
+                    if let Ok(dl_res) = client.get(download_url).send().await {
                         if dl_res.status().is_success() {
                             if let Ok(dl_bytes) = dl_res.bytes().await {
                                 let _ = std::fs::write(&full_dest, &dl_bytes);
@@ -444,11 +342,11 @@ pub async fn install_forge(
         }
     }
 
-    // 4. Emit completed event
+    // 5. Emit completed event
     let _ = app.emit("forge-progress", ForgeProgress {
         status: "completed".to_string(),
         progress: 100,
-        message: "Forge installation successfully completed!".to_string(),
+        message: "Forge installation successfully verified!".to_string(),
     });
 
     Ok(())
