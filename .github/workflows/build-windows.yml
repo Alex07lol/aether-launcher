@@ -59,4 +59,5 @@ jobs:
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/aether-launcher.exe
           token: ${{ secrets.GITHUB_TOKEN }}

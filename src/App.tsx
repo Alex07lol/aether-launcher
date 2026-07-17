@@ -12,7 +12,6 @@ import Checkbox from './components/Checkbox';
 import VersionSelector from './components/VersionSelector';
 import LaunchButton from './components/LaunchButton';
 import ModManager from './components/ModManager';
-import ForgeInstaller from './components/ForgeInstaller';
 import { UserIcon } from './components/Icons';
 import { listen } from '@tauri-apps/api/event';
 import { invoke, isTauri as checkIsTauri } from '@tauri-apps/api/core';
@@ -125,7 +124,7 @@ export const App: React.FC = () => {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [customJvmArgs, setCustomJvmArgs] = useState('-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=32M -XX:+AlwaysPreTouch -XX:+DisableExplicitGC');
-  const [launchForge, setLaunchForge] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [isIntelCpuDetected, setIsIntelCpuDetected] = useState(false);
   const [systemRam, setSystemRam] = useState<{ total_mb: number; available_mb: number }>({ total_mb: 8192, available_mb: 4096 });
   const [gameLogs, setGameLogs] = useState<string[]>([]);
@@ -138,6 +137,15 @@ export const App: React.FC = () => {
     settingsService.loadSettings();
 
     if (isTauri) {
+      setUpdateStatus('Checking for updates...');
+      invoke<string>('check_and_update_launcher').then((res) => {
+        console.log('[Updater]', res);
+        setUpdateStatus(null);
+      }).catch((err) => {
+        console.error('[Updater]', err);
+        setUpdateStatus(null);
+      });
+
       invoke<boolean>('detect_intel_cpu').then((detected) => {
         setIsIntelCpuDetected(detected);
       }).catch(console.error);
@@ -188,10 +196,14 @@ export const App: React.FC = () => {
         setIsGameRunning(false);
         setGameLogs((prev) => [...prev, `[Launcher] Process exited with status code: ${event.payload}`]);
       });
+      const unlistenUpdate = listen<{status: string; message: string}>('launcher-update-progress', (event) => {
+        setUpdateStatus(event.payload.message);
+      });
 
       return () => {
         unlistenLog.then(fn => fn());
         unlistenExit.then(fn => fn());
+        unlistenUpdate.then(fn => fn());
       };
     }
   }, []);
@@ -239,6 +251,19 @@ export const App: React.FC = () => {
           } catch (e) {
             console.warn('[Launcher] Mod update check notice:', e);
           }
+
+          try {
+            setGameLogs((prev) => [...prev, '[Launcher] Ensuring Forge is installed...']);
+            const recommendedForge = await invoke<string>('get_forge_version', { mcVersion: selectedVersion || '1.8.9' });
+            await invoke('install_forge', {
+              mcVersion: selectedVersion || '1.8.9',
+              forgeVersion: recommendedForge,
+              minecraftDir: minecraftDir,
+            });
+            setGameLogs((prev) => [...prev, '[Launcher] Forge installation verified.']);
+          } catch (e) {
+            setGameLogs((prev) => [...prev, `[Launcher] Forge check failed: ${e}`]);
+          }
         }
 
         await invoke('launch_game', {
@@ -252,7 +277,7 @@ export const App: React.FC = () => {
           width: settings.width || 854,
           height: settings.height || 480,
           fullScreen: settings.fullScreen || false,
-          isForge: launchForge,
+          isForge: true,
           username: currentUser.username,
           uuid: currentUser.uuid,
           accessToken: currentUser.accessToken,
@@ -378,6 +403,7 @@ export const App: React.FC = () => {
           <img src="/logo.png" alt="Aether Logo" className="launcher-logo-img" />
           <h1 className="launcher-logo-title">AETHER</h1>
           <p className="launcher-logo-subtitle">NEXT-GENERATION GAMING ENVIRONMENT</p>
+          {updateStatus && <div className="launcher-update-status" style={{color: '#0ff', fontSize: '12px', marginTop: '4px'}}>{updateStatus}</div>}
         </div>
 
         {/* Dynamic Authentication Section */}
@@ -484,9 +510,6 @@ export const App: React.FC = () => {
           />
         </div>
 
-        {/* Forge Installer - collapsible */}
-        <div className="launcher-addon-section">
-          <ForgeInstaller />
         </div>
 
         {/* Mod Manager - drag-and-drop, collapsible */}
@@ -589,16 +612,6 @@ export const App: React.FC = () => {
             </div>
 
             <div className="settings-options-row">
-              <label className="checkbox-option">
-                <input 
-                  type="checkbox" 
-                  checked={launchForge}
-                  onChange={e => setLaunchForge(e.target.checked)}
-                  className="option-checkbox"
-                />
-                <span>{t('launchForge')}</span>
-              </label>
-
               <label className="checkbox-option">
                 <input 
                   type="checkbox" 

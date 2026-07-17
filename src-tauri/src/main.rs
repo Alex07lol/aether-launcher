@@ -8,6 +8,7 @@ mod installer;
 mod auth;
 mod launcher;
 mod mods;
+mod auto_update;
 
 // A placeholder greet command for frontend IPC testing
 #[tauri::command]
@@ -56,7 +57,8 @@ fn main() {
             mods::list_mods,
             mods::remove_mod,
             mods::install_mod_bytes,
-            mods::open_mods_folder
+            mods::open_mods_folder,
+            auto_update::check_and_update_launcher
         ])
         .setup(|app| {
             // Retrieve main window instance

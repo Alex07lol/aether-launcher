@@ -1,0 +1,3 @@
+Something went wrong trying to read the squashfs image.
+Failed to open squashfs image
+Failed to extract AppImage
