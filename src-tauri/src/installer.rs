@@ -255,6 +255,10 @@ fn parse_maven_name(name: &str) -> Option<(PathBuf, String)> {
     Some((rel_path, maven_subpath))
 }
 
+const EMBEDDED_FORGE_UNIVERSAL: &[u8] = include_bytes!("../embedded/forge-1.8.9-universal.jar");
+const EMBEDDED_LAUNCHWRAPPER: &[u8] = include_bytes!("../embedded/launchwrapper-1.12.jar");
+const EMBEDDED_ASM: &[u8] = include_bytes!("../embedded/asm-all-5.0.3.jar");
+
 #[tauri::command]
 pub async fn install_forge(
     app: AppHandle,
@@ -274,17 +278,36 @@ pub async fn install_forge(
     let universal_jar_name = format!("forge-{}-{}-{}.jar", mc_version, forge_version, mc_version);
     let universal_dest = forge_lib_dir.join(&universal_jar_name);
 
+    // 1. Unpack embedded Forge universal jar
+    std::fs::create_dir_all(&forge_lib_dir).ok();
     let is_valid_universal = std::fs::metadata(&universal_dest)
         .map(|m| m.len() > 1_000_000)
         .unwrap_or(false);
 
-    if forge_lib_dir.exists() && is_valid_universal {
+    if !is_valid_universal {
         let _ = app.emit("forge-progress", ForgeProgress {
-            status: "completed".to_string(),
-            progress: 100,
-            message: "Forge is already installed.".to_string(),
+            status: "extracting".to_string(),
+            progress: 30,
+            message: "Unpacking pre-bundled Forge core...".to_string(),
         });
-        return Ok(());
+        std::fs::write(&universal_dest, EMBEDDED_FORGE_UNIVERSAL)
+            .map_err(|e| format!("Failed to write pre-bundled Forge jar: {}", e))?;
+    }
+
+    // 2. Unpack embedded Launchwrapper jar
+    let lw_dir = lib_dir.join("net").join("minecraft").join("launchwrapper").join("1.12");
+    std::fs::create_dir_all(&lw_dir).ok();
+    let lw_dest = lw_dir.join("launchwrapper-1.12.jar");
+    if !lw_dest.exists() || std::fs::metadata(&lw_dest).map(|m| m.len() < 10_000).unwrap_or(true) {
+        let _ = std::fs::write(&lw_dest, EMBEDDED_LAUNCHWRAPPER);
+    }
+
+    // 3. Unpack embedded ASM jar
+    let asm_dir = lib_dir.join("org").join("ow2").join("asm").join("asm-all").join("5.0.3");
+    std::fs::create_dir_all(&asm_dir).ok();
+    let asm_dest = asm_dir.join("asm-all-5.0.3.jar");
+    if !asm_dest.exists() || std::fs::metadata(&asm_dest).map(|m| m.len() < 10_000).unwrap_or(true) {
+        let _ = std::fs::write(&asm_dest, EMBEDDED_ASM);
     }
 
     // 1. Emit downloading event
