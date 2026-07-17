@@ -7,7 +7,6 @@ export default defineConfig({
   base: './',
   build: {
     target: 'esnext',
-    minify: 'esbuild',
     cssCodeSplit: true,
   },
   server: {
