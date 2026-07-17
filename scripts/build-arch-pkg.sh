@@ -12,6 +12,7 @@ chown -R builduser:builduser .
 
 sudo -H -u builduser bash << 'BUILDEOF'
 set -e
+rustup default stable
 npm ci
 npx tauri build --no-bundle
 
