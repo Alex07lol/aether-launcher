@@ -16,6 +16,7 @@ import { UserIcon } from './components/Icons';
 import { listen } from '@tauri-apps/api/event';
 import { invoke, isTauri as checkIsTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { AlertTriangle, Copy, Check, Terminal, X } from 'lucide-react';
 import './App.css';
 
 // Detect if running inside Tauri environment using the official API
@@ -130,6 +131,8 @@ export const App: React.FC = () => {
   const [gameLogs, setGameLogs] = useState<string[]>([]);
   const [isGameRunning, setIsGameRunning] = useState(false);
   const [showLogsConsole, setShowLogsConsole] = useState(false);
+  const [crashData, setCrashData] = useState<{ exitCode: number; logs: string[] } | null>(null);
+  const [copiedLogs, setCopiedLogs] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -194,7 +197,15 @@ export const App: React.FC = () => {
       });
       const unlistenExit = listen<number>('game-exit', (event) => {
         setIsGameRunning(false);
-        setGameLogs((prev) => [...prev, `[Launcher] Process exited with status code: ${event.payload}`]);
+        const exitCode = event.payload;
+        const exitMsg = `[Launcher] Process exited with status code: ${exitCode}`;
+        setGameLogs((prev) => {
+          const updatedLogs = [...prev, exitMsg];
+          if (exitCode !== 0) {
+            setCrashData({ exitCode, logs: updatedLogs });
+          }
+          return updatedLogs;
+        });
       });
       const unlistenUpdate = listen<{status: string; message: string}>('launcher-update-progress', (event) => {
         setUpdateStatus(event.payload.message);
@@ -229,7 +240,6 @@ export const App: React.FC = () => {
     
     if (downloadStatus.status === 'completed') {
       setIsGameRunning(true);
-      setShowLogsConsole(true);
       setGameLogs(['[Launcher] Preparing JVM sandbox and folders...']);
 
       try {
@@ -295,12 +305,36 @@ export const App: React.FC = () => {
       } catch (err: any) {
         console.error('Launch failed:', err);
         setIsGameRunning(false);
-        setGameLogs((prev) => [...prev, `[Launcher] Launch Error: ${err}`]);
+        const errorMsg = `[Launcher] Launch Error: ${err}`;
+        setGameLogs((prev) => {
+          const updatedLogs = [...prev, errorMsg];
+          setCrashData({ exitCode: -1, logs: updatedLogs });
+          return updatedLogs;
+        });
       }
     } else {
       if (selectedVersion) {
         downloaderService.startDownload(selectedVersion);
       }
+    }
+  };
+
+  const handleCopyFullLogs = async () => {
+    if (!crashData || crashData.logs.length === 0) return;
+    const fullLogsText = crashData.logs.join('\n');
+    try {
+      await navigator.clipboard.writeText(fullLogsText);
+      setCopiedLogs(true);
+      setTimeout(() => setCopiedLogs(false), 2500);
+    } catch (e) {
+      const textArea = document.createElement('textarea');
+      textArea.value = fullLogsText;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedLogs(true);
+      setTimeout(() => setCopiedLogs(false), 2500);
     }
   };
 
@@ -716,6 +750,77 @@ export const App: React.FC = () => {
 
       {/* Minimal subtle version tag at footer */}
       <span className="launcher-version-tag">Aether v1.0.0-Beta</span>
+
+      {/* Game Crash Modal Display */}
+      {crashData && (
+        <div className="crash-modal-overlay">
+          <div className="crash-modal-card">
+            <div className="crash-modal-header">
+              <div className="crash-title-group">
+                <AlertTriangle className="crash-alert-icon" size={20} />
+                <h3>Minecraft Crashed</h3>
+                <span className="crash-exit-code-badge">Exit Code: {crashData.exitCode}</span>
+              </div>
+              <button
+                onClick={() => setCrashData(null)}
+                className="crash-close-btn"
+                type="button"
+                aria-label="Close crash report"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="crash-modal-desc">
+              The game session terminated unexpectedly (exit code {crashData.exitCode}). Here is a snippet of recent log activity:
+            </p>
+
+            <div className="crash-log-preview-box">
+              <div className="crash-log-preview-header">Log Preview (Recent Session Activity)</div>
+              <div className="crash-log-preview-content scroll-container">
+                {crashData.logs.slice(-12).map((logLine, idx) => (
+                  <div key={idx} className="crash-log-line">
+                    {logLine}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="crash-modal-footer">
+              <button
+                onClick={handleCopyFullLogs}
+                className={`crash-copy-btn ${copiedLogs ? 'copied' : ''}`}
+                type="button"
+              >
+                {copiedLogs ? <Check size={15} /> : <Copy size={15} />}
+                <span>{copiedLogs ? 'Copied Full Logs!' : 'Copy Entire Session Logs'}</span>
+              </button>
+
+              <div className="crash-footer-right">
+                <button
+                  onClick={() => {
+                    setShowLogsConsole(true);
+                    setCrashData(null);
+                  }}
+                  className="crash-console-btn"
+                  type="button"
+                >
+                  <Terminal size={14} />
+                  <span>View Full Console</span>
+                </button>
+
+                <button
+                  onClick={() => setCrashData(null)}
+                  className="crash-dismiss-btn"
+                  type="button"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
