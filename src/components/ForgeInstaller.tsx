@@ -14,8 +14,18 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 export const ForgeInstaller: React.FC = () => {
   const { settings, selectedVersion } = useLauncherStore();
-  const minecraftDir = settings.minecraftDir || '/home/aether/.aether-launcher';
+  const [resolvedDir, setResolvedDir] = useState<string>(settings.minecraftDir || '');
   const versionId = selectedVersion || '1.8.9';
+
+  useEffect(() => {
+    if (isTauri && (!settings.minecraftDir || settings.minecraftDir.includes('/home/aether'))) {
+      invoke<string>('get_minecraft_dir').then(setResolvedDir).catch(() => setResolvedDir('.aether-launcher'));
+    } else {
+      setResolvedDir(settings.minecraftDir || '.aether-launcher');
+    }
+  }, [settings.minecraftDir]);
+
+  const minecraftDir = resolvedDir || '.aether-launcher';
 
   const [recommendedVersion, setRecommendedVersion] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);

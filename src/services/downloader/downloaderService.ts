@@ -102,7 +102,15 @@ class DownloaderService implements IDownloaderService {
 
     if (isTauri) {
       try {
-        const minecraftDir = store.settings.minecraftDir || '/home/aether/.aether-launcher';
+        let minecraftDir = store.settings.minecraftDir;
+        if (isTauri && (!minecraftDir || minecraftDir.includes('/home/aether'))) {
+          try {
+            minecraftDir = await invoke<string>('get_minecraft_dir');
+          } catch (e) {
+            minecraftDir = '/home/aether/.aether-launcher';
+          }
+        }
+        if (!minecraftDir) minecraftDir = '/home/aether/.aether-launcher';
         
         // 1. Scaffold directories: .aether-launcher, libraries, versions, assets, mods
         console.log(`[Installer] Initializing structure in ${minecraftDir}`);

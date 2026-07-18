@@ -20,6 +20,9 @@ class SettingsService implements ISettingsService {
     if (localData) {
       try {
         const parsed = JSON.parse(localData) as LauncherSettings;
+        if (isTauri && (!parsed.minecraftDir || parsed.minecraftDir.includes('/home/aether'))) {
+          parsed.minecraftDir = await this.getDefaultMinecraftDir();
+        }
         store.updateSettings(parsed);
         return parsed;
       } catch (e) {

@@ -20,8 +20,18 @@ function formatBytes(bytes: number): string {
 
 export const ModManager: React.FC = () => {
   const { settings, selectedVersion } = useLauncherStore();
-  const minecraftDir = settings.minecraftDir || `${window?.location?.origin ? '' : '/home/aether'}/.aether-launcher`;
+  const [resolvedDir, setResolvedDir] = useState<string>(settings.minecraftDir || '');
   const versionId = selectedVersion || '1.8.9';
+
+  useEffect(() => {
+    if (isTauri && (!settings.minecraftDir || settings.minecraftDir.includes('/home/aether'))) {
+      invoke<string>('get_minecraft_dir').then(setResolvedDir).catch(() => setResolvedDir('.aether-launcher'));
+    } else {
+      setResolvedDir(settings.minecraftDir || '.aether-launcher');
+    }
+  }, [settings.minecraftDir]);
+
+  const minecraftDir = resolvedDir || '.aether-launcher';
 
   const [mods, setMods] = useState<ModEntry[]>([]);
   const [isDragging, setIsDragging] = useState(false);

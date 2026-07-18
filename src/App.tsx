@@ -233,7 +233,15 @@ export const App: React.FC = () => {
       setGameLogs(['[Launcher] Preparing JVM sandbox and folders...']);
 
       try {
-        const minecraftDir = settings.minecraftDir || '/home/aether/.aether-launcher';
+        let minecraftDir = settings.minecraftDir;
+        if (isTauri && (!minecraftDir || minecraftDir.includes('/home/aether'))) {
+          try {
+            minecraftDir = await invoke<string>('get_minecraft_dir');
+          } catch (e) {
+            minecraftDir = '/home/aether/.aether-launcher';
+          }
+        }
+        if (!minecraftDir) minecraftDir = '/home/aether/.aether-launcher';
         const minMemory = settings.minMemory || 1024;
         const maxMemory = settings.maxMemory || 4096;
         const combinedJvmArgs = `${settings.jvmArgs || ''} ${customJvmArgs || ''}`.trim();
@@ -319,7 +327,15 @@ export const App: React.FC = () => {
     if (!confirmClear) return;
 
     try {
-      const minecraftDir = settings.minecraftDir || '/home/aether/.aether-launcher';
+      let minecraftDir = settings.minecraftDir;
+      if (isTauri && (!minecraftDir || minecraftDir.includes('/home/aether'))) {
+        try {
+          minecraftDir = await invoke<string>('get_minecraft_dir');
+        } catch (e) {
+          minecraftDir = '/home/aether/.aether-launcher';
+        }
+      }
+      if (!minecraftDir) minecraftDir = '/home/aether/.aether-launcher';
       if (isTauri) {
         await invoke('clear_minecraft_cache', { baseDir: minecraftDir });
       }
