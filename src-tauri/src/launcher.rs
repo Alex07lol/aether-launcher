@@ -360,7 +360,7 @@ pub async fn launch_game(
     if is_intel {
         println!("[Launcher] Intel CPU / Performance mode active. Injecting Intel JVM vectorization flags.");
         let intel_flags = [
-            "-XX:+UseVectorCmove",
+            "-XX:+UseVectorCmov",
             "-XX:+UseVectorVectorize",
             "-XX:+UseFastAccessorMethods",
             "-XX:+OptimizeStringConcat",
