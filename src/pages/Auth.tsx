@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLauncherStore } from '../services/state/useLauncherStore';
-import authService, { DeviceCodeInfo } from '../services/auth/authService';
+import authService, { type DeviceCodeInfo } from '../services/auth/authService';
 import GlassPanel from '../components/GlassPanel';
 import { validateUsername } from '../services/utils';
 import { ShieldCheck, User, Compass, Copy, Check, ExternalLink, Loader2, X } from 'lucide-react';
