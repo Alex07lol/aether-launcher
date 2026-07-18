@@ -2,11 +2,21 @@ import { useLauncherStore } from '../state/useLauncherStore';
 import type { UserProfile } from '../state/useLauncherStore';
 import { invoke } from '@tauri-apps/api/core';
 
-// Detect if running inside Tauri environment
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+export interface DeviceCodeInfo {
+  user_code: string;
+  device_code: string;
+  verification_uri: string;
+  interval: number;
+  expires_in: number;
+  message?: string;
+}
 
 export interface IAuthService {
   loginOffline(username: string): Promise<UserProfile>;
+  initiateDeviceCode(): Promise<DeviceCodeInfo>;
+  pollDeviceCode(deviceCode: string, interval: number): Promise<UserProfile>;
   loginMicrosoft(): Promise<UserProfile>;
   loginRefresh(): Promise<UserProfile>;
   logout(): Promise<void>;
@@ -75,7 +85,6 @@ class AuthService implements IAuthService {
   async loginOffline(username: string): Promise<UserProfile> {
     useLauncherStore.getState().setIsAuthenticating(true);
     
-    // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 600));
     
     const profile: UserProfile = {
@@ -91,12 +100,57 @@ class AuthService implements IAuthService {
     return profile;
   }
 
+  async initiateDeviceCode(): Promise<DeviceCodeInfo> {
+    if (isTauri) {
+      return await invoke<DeviceCodeInfo>('initiate_device_code');
+    } else {
+      return {
+        user_code: 'ABCD-EFGH',
+        device_code: 'mock_device_code_123',
+        verification_uri: 'https://microsoft.com/devicelogin',
+        interval: 3,
+        expires_in: 900,
+      };
+    }
+  }
+
+  async pollDeviceCode(deviceCode: string, interval: number): Promise<UserProfile> {
+    useLauncherStore.getState().setIsAuthenticating(true);
+    if (isTauri) {
+      try {
+        const profile = await invoke<UserProfile>('poll_device_code_token', {
+          deviceCode,
+          interval,
+        });
+        this.recordLogin(profile);
+        useLauncherStore.getState().setCurrentUser(profile);
+        useLauncherStore.getState().setIsAuthenticating(false);
+        return profile;
+      } catch (e: any) {
+        useLauncherStore.getState().setIsAuthenticating(false);
+        throw new Error(e.toString());
+      }
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const profile: UserProfile = {
+        username: 'AetherExplorer',
+        uuid: 'ms-' + Math.random().toString(36).substring(2, 10),
+        accessToken: 'ms_token_' + Math.random().toString(36).substring(2),
+        userType: 'microsoft',
+      };
+      this.recordLogin(profile);
+      useLauncherStore.getState().setCurrentUser(profile);
+      useLauncherStore.getState().setIsAuthenticating(false);
+      return profile;
+    }
+  }
+
   async loginMicrosoft(): Promise<UserProfile> {
     useLauncherStore.getState().setIsAuthenticating(true);
     
     if (isTauri) {
       try {
-        console.log('[AuthService] Initiating native Microsoft login...');
+        console.log('[AuthService] Initiating Device Code Microsoft login...');
         const profile = await invoke<UserProfile>('login_microsoft');
         this.recordLogin(profile);
         useLauncherStore.getState().setCurrentUser(profile);
@@ -107,7 +161,6 @@ class AuthService implements IAuthService {
         throw new Error(e.toString());
       }
     } else {
-      // Browser preview mock
       await new Promise((resolve) => setTimeout(resolve, 1500));
       const profile: UserProfile = {
         username: 'AetherExplorer',
@@ -129,7 +182,6 @@ class AuthService implements IAuthService {
       this.recordLogin(profile);
       return profile;
     } else {
-      // Browser fallback mock
       const profile: UserProfile = {
         username: 'AetherExplorer',
         uuid: 'ms-refreshed',

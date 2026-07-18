@@ -4,17 +4,12 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
-use tokio::net::TcpListener;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::time::{timeout, Duration};
+use tauri::{AppHandle, Emitter};
+use tokio::time::{sleep, Duration};
 
-const MS_CLIENT_ID: &str = "000000004C12AE29"; // Minecraft Launcher Client ID (pre-approved for Xbox Live)
-const PORT: u16 = 53124;
-const REDIRECT_URI: &str = "http://127.0.0.1:53124";
-const REDIRECT_URI_ENCODED: &str = "http%3A%2F%2F127.0.0.1%3A53124";
+const MS_CLIENT_ID: &str = "00000000402b5328"; // Official Minecraft Launcher Client ID
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AuthProfile {
     pub username: String,
     pub uuid: String,
@@ -22,10 +17,22 @@ pub struct AuthProfile {
     pub user_type: String, // "microsoft" or "offline"
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DeviceCodeResponse {
+    pub user_code: String,
+    pub device_code: String,
+    pub verification_uri: String,
+    pub interval: u64,
+    pub expires_in: u64,
+    pub message: Option<String>,
+}
+
 #[derive(Deserialize)]
 struct MsTokenResponse {
-    access_token: String,
+    access_token: Option<String>,
     refresh_token: Option<String>,
+    error: Option<String>,
+    error_description: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -99,7 +106,7 @@ struct XstsErrorResponse {
     message: Option<String>,
 }
 
-// Scramble/Encryption key for storing tokens securely
+// Encryption key for storing refresh tokens securely on disk
 const XOR_KEY: &[u8] = b"AetherLauncherSecureAuthTokenKey2026";
 
 fn get_token_file_path() -> PathBuf {
@@ -142,7 +149,6 @@ pub fn save_secure_token(token: &str) -> Result<(), String> {
         let _ = std::fs::create_dir_all(parent);
     }
     
-    // Encrypt using basic XOR cipher to prevent plain-text token exposure on disk
     let data = token.as_bytes();
     let mut encrypted = Vec::with_capacity(data.len());
     for (i, &byte) in data.iter().enumerate() {
@@ -183,103 +189,102 @@ pub fn clear_secure_token() -> Result<(), String> {
     Ok(())
 }
 
-// Perform loopback server flow to capture OAuth code
-async fn acquire_oauth_code() -> Result<String, String> {
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", PORT))
+#[tauri::command]
+pub async fn initiate_device_code() -> Result<DeviceCodeResponse, String> {
+    let client = Client::builder()
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+
+    let mut params = HashMap::new();
+    params.insert("client_id", MS_CLIENT_ID);
+    params.insert("scope", "XboxLive.signin offline_access");
+    params.insert("response_type", "device_code");
+
+    let res = client
+        .post("https://login.live.com/oauth20_connect.srf")
+        .form(&params)
+        .send()
         .await
-        .map_err(|e| format!("OAuth loopback port already in use: {}", e))?;
+        .map_err(|e| format!("Failed to request Device Code from Microsoft: {}", e))?;
 
-    // Format Microsoft login URL
-    let login_url = format!(
-        "https://login.live.com/oauth20_authorize.srf?client_id={}&response_type=code&redirect_uri={}&scope=XboxLive.signin%20offline_access",
-        MS_CLIENT_ID, REDIRECT_URI_ENCODED
-    );
+    if !res.status().is_success() {
+        return Err(format!("Microsoft device code endpoint returned status {}", res.status()));
+    }
 
-    // Open link in browser
-    open_url(&login_url);
+    let device_info = res
+        .json::<DeviceCodeResponse>()
+        .await
+        .map_err(|e| format!("Failed to parse device code response: {}", e))?;
 
-    // Timeout limit (60 seconds)
-    let timeout_limit = Duration::from_secs(60);
+    Ok(device_info)
+}
 
-    let code_result = timeout(timeout_limit, async {
-        loop {
-            if let Ok((mut stream, _)) = listener.accept().await {
-                let mut buffer = [0; 2048];
-                if let Ok(bytes_read) = stream.read(&mut buffer).await {
-                    if bytes_read == 0 {
-                        continue;
+#[tauri::command]
+pub async fn poll_device_code_token(device_code: String, interval: u64) -> Result<AuthProfile, String> {
+    let client = Client::builder()
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+
+    let mut poll_interval = if interval > 0 { interval } else { 5 };
+    let max_polls = 180; // Up to ~15 minutes
+
+    for _ in 0..max_polls {
+        sleep(Duration::from_secs(poll_interval)).await;
+
+        let mut params = HashMap::new();
+        params.insert("client_id", MS_CLIENT_ID);
+        params.insert("grant_type", "urn:ietf:params:oauth:grant-type:device_code");
+        params.insert("device_code", &device_code);
+
+        let res = client
+            .post("https://login.live.com/oauth20_token.srf")
+            .form(&params)
+            .send()
+            .await;
+
+        if let Ok(response) = res {
+            if let Ok(tokens) = response.json::<MsTokenResponse>().await {
+                if let Some(access_token) = tokens.access_token {
+                    if let Some(refresh) = tokens.refresh_token.as_deref() {
+                        let _ = save_secure_token(refresh);
                     }
-                    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+                    return authenticate_minecraft_flow(&client, &access_token).await;
+                }
 
-                    if let Some(code_idx) = request.find("code=") {
-                        let rest = &request[code_idx + 5..];
-                        let end_idx = rest.find(' ').unwrap_or(rest.len());
-                        let raw_code = &rest[..end_idx];
-                        
-                        // Extract the actual code (strip query parameters if any)
-                        let code = raw_code.split('&').next().unwrap_or(raw_code).to_string();
-
-                        // Send successful login response to browser
-                        let html = "<html><head><title>Aether Launcher</title><style>body { background: #030712; color: #38bdf8; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; } h1 { font-size: 24px; text-shadow: 0 0 10px rgba(56,189,248,0.5); }</style></head><body><div><h1>Authentication Successful!</h1><p>You can now close this tab and return to the launcher.</p></div></body></html>";
-                        let response = format!(
-                            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                            html.len(), html
-                        );
-                        let _ = stream.write_all(response.as_bytes()).await;
-                        let _ = stream.flush().await;
-
-                        return Ok(code);
+                if let Some(err) = tokens.error {
+                    match err.as_str() {
+                        "authorization_pending" => continue,
+                        "slow_down" => {
+                            poll_interval += 5;
+                            continue;
+                        }
+                        "expired_token" => return Err("The authentication session expired. Please try again.".to_string()),
+                        _ => return Err(tokens.error_description.unwrap_or(err)),
                     }
                 }
             }
         }
-    }).await;
-
-    match code_result {
-        Ok(result) => result,
-        Err(_) => Err("Authentication timed out (60 seconds limit exceeded). Please try again.".to_string()),
     }
+
+    Err("Authentication timed out waiting for user authorization.".to_string())
 }
 
 #[tauri::command]
-pub async fn login_microsoft(_app: AppHandle) -> Result<AuthProfile, String> {
-    // 1. Get OAuth Code
-    let code = acquire_oauth_code().await?;
+pub async fn login_microsoft(app: AppHandle) -> Result<AuthProfile, String> {
+    let device_info = initiate_device_code().await?;
 
-    let client = Client::builder()
-        .build()
-        .map_err(|e| format!("Failed to create client: {}", e))?;
+    // Emit event to frontend with user_code and verification_uri
+    let _ = app.emit("device-code-info", device_info.clone());
 
-    // 2. Exchange Code for MS Tokens
-    let mut params = HashMap::new();
-    params.insert("client_id", MS_CLIENT_ID);
-    params.insert("code", &code);
-    params.insert("grant_type", "authorization_code");
-    params.insert("redirect_uri", REDIRECT_URI);
+    // Automatically open verification URL in browser
+    open_url(&device_info.verification_uri);
 
-    let ms_res = client
-        .post("https://login.live.com/oauth20_token.srf")
-        .form(&params)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to exchange OAuth code: {}", e))?;
-
-    let ms_tokens = ms_res
-        .json::<MsTokenResponse>()
-        .await
-        .map_err(|e| format!("Failed to parse Microsoft tokens: {}", e))?;
-
-    // Store the refresh token securely if present
-    if let Some(refresh) = ms_tokens.refresh_token.as_deref() {
-        let _ = save_secure_token(refresh);
-    }
-
-    authenticate_minecraft_flow(&client, &ms_tokens.access_token).await
+    // Poll until user completes login
+    poll_device_code_token(device_info.device_code, device_info.interval).await
 }
 
 #[tauri::command]
 pub async fn login_refresh() -> Result<AuthProfile, String> {
-    // 1. Load saved refresh token
     let refresh_token = match load_secure_token()? {
         Some(token) => token,
         None => return Err("No saved accounts found. Please log in first.".to_string()),
@@ -289,12 +294,10 @@ pub async fn login_refresh() -> Result<AuthProfile, String> {
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
-    // 2. Refresh MS tokens
     let mut params = HashMap::new();
     params.insert("client_id", MS_CLIENT_ID);
     params.insert("refresh_token", &refresh_token);
     params.insert("grant_type", "refresh_token");
-    params.insert("redirect_uri", REDIRECT_URI);
 
     let ms_res = client
         .post("https://login.live.com/oauth20_token.srf")
@@ -308,12 +311,14 @@ pub async fn login_refresh() -> Result<AuthProfile, String> {
         .await
         .map_err(|e| format!("Failed to parse refreshed tokens: {}", e))?;
 
-    // Save the new refresh token securely
-    if let Some(refresh) = ms_tokens.refresh_token.as_deref() {
-        let _ = save_secure_token(refresh);
+    if let Some(access_token) = ms_tokens.access_token {
+        if let Some(refresh) = ms_tokens.refresh_token.as_deref() {
+            let _ = save_secure_token(refresh);
+        }
+        authenticate_minecraft_flow(&client, &access_token).await
+    } else {
+        Err(ms_tokens.error_description.unwrap_or_else(|| "Failed to refresh session.".to_string()))
     }
-
-    authenticate_minecraft_flow(&client, &ms_tokens.access_token).await
 }
 
 // Inner flow: MS Access Token -> Xbox Live -> XSTS -> Minecraft Services -> Minecraft Profile
@@ -347,7 +352,6 @@ async fn authenticate_minecraft_flow(client: &Client, ms_access_token: &str) -> 
         .await
         .map_err(|e| format!("Failed to parse Xbox Live response: {}", e))?;
 
-    // Retrieve user hash (uhs) from claim display properties
     let user_hash = xbl_data
         .display_claims
         .get("xui")
@@ -445,7 +449,6 @@ async fn authenticate_minecraft_flow(client: &Client, ms_access_token: &str) -> 
 
 #[tauri::command]
 pub fn save_accounts_json(json_content: String) -> Result<(), String> {
-    // Write accounts.json to current working dir, .minecraft and .aether-launcher
     let targets = [
         PathBuf::from("accounts.json"),
         PathBuf::from(".minecraft/accounts.json"),

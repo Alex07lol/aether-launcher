@@ -199,41 +199,88 @@ pub fn clear_minecraft_cache(base_dir: String) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(serde::Serialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct ForgeProgress {
     status: String,
     progress: u32,
     message: String,
 }
 
+#[derive(serde::Deserialize)]
+struct PythonForgeVersionResult {
+    success: bool,
+    version: Option<String>,
+    error: Option<String>,
+}
+
+const EMBEDDED_FORGE_SCRIPT: &str = include_str!("../../scripts/forge_installer.py");
+
+fn get_python_executable() -> Result<String, String> {
+    let candidates = ["python3", "python", "py"];
+    for candidate in candidates.iter() {
+        if let Ok(output) = std::process::Command::new(candidate).arg("--version").output() {
+            if output.status.success() {
+                return Ok(candidate.to_string());
+            }
+        }
+    }
+    Err("Python 3 executable (python3/python) was not found on system PATH. Please install Python 3.".to_string())
+}
+
+fn ensure_forge_script(minecraft_dir: &str) -> Result<PathBuf, String> {
+    let script_dir = Path::new(minecraft_dir).join("scripts");
+    std::fs::create_dir_all(&script_dir)
+        .map_err(|e| format!("Failed to create scripts directory: {}", e))?;
+
+    let script_path = script_dir.join("forge_installer.py");
+    std::fs::write(&script_path, EMBEDDED_FORGE_SCRIPT)
+        .map_err(|e| format!("Failed to write forge_installer.py: {}", e))?;
+
+    Ok(script_path)
+}
+
 #[tauri::command]
 pub fn get_forge_version(mc_version: String) -> Result<String, String> {
+    let py_bin = match get_python_executable() {
+        Ok(bin) => bin,
+        Err(_) => {
+            return match mc_version.as_str() {
+                "1.8.9" => Ok("11.15.1.2318".to_string()),
+                "1.7.10" => Ok("10.13.4.1614".to_string()),
+                _ => Ok(format!("{}-latest", mc_version)),
+            };
+        }
+    };
+
+    let script_path = match get_minecraft_dir() {
+        Ok(dir) => ensure_forge_script(&dir).unwrap_or_else(|_| PathBuf::from("scripts/forge_installer.py")),
+        Err(_) => PathBuf::from("scripts/forge_installer.py"),
+    };
+
+    let output = std::process::Command::new(py_bin)
+        .arg(&script_path)
+        .arg("get-version")
+        .arg("--mc-version")
+        .arg(&mc_version)
+        .output();
+
+    if let Ok(out) = output {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        if let Ok(res) = serde_json::from_str::<PythonForgeVersionResult>(stdout.trim()) {
+            if res.success {
+                if let Some(ver) = res.version {
+                    return Ok(ver);
+                }
+            }
+        }
+    }
+
     match mc_version.as_str() {
         "1.8.9" => Ok("11.15.1.2318".to_string()),
         "1.7.10" => Ok("10.13.4.1614".to_string()),
-        _ => Err(format!("Minecraft version {} does not have a pre-configured Forge release.", mc_version)),
+        _ => Err(format!("Minecraft version {} does not have a Forge release.", mc_version)),
     }
 }
-
-fn parse_maven_name(name: &str) -> Option<(PathBuf, String)> {
-    let parts: Vec<&str> = name.split(':').collect();
-    if parts.len() < 3 {
-        return None;
-    }
-    let group = parts[0].replace('.', "/");
-    let artifact = parts[1];
-    let version = parts[2];
-
-    let filename = format!("{}-{}.jar", artifact, version);
-    let rel_path = PathBuf::from(&group).join(artifact).join(version).join(&filename);
-    let maven_subpath = format!("{}/{}/{}/{}", group, artifact, version, filename);
-
-    Some((rel_path, maven_subpath))
-}
-
-const EMBEDDED_FORGE_UNIVERSAL: &[u8] = include_bytes!("../embedded/forge-1.8.9-universal.jar");
-const EMBEDDED_LAUNCHWRAPPER: &[u8] = include_bytes!("../embedded/launchwrapper-1.12.jar");
-const EMBEDDED_ASM: &[u8] = include_bytes!("../embedded/asm-all-5.0.3.jar");
 
 #[tauri::command]
 pub async fn install_forge(
@@ -242,114 +289,75 @@ pub async fn install_forge(
     forge_version: String,
     minecraft_dir: String,
 ) -> Result<(), String> {
-    let lib_dir = Path::new(&minecraft_dir).join("libraries");
-    std::fs::create_dir_all(&lib_dir).map_err(|e| format!("Failed to create libraries directory: {}", e))?;
+    use std::process::Stdio;
+    use tokio::io::AsyncBufReadExt;
 
-    let forge_lib_dir = lib_dir
-        .join("net")
-        .join("minecraftforge")
-        .join("forge")
-        .join(format!("{}-{}-{}", mc_version, forge_version, mc_version));
+    let py_bin = get_python_executable()?;
+    let script_path = ensure_forge_script(&minecraft_dir)?;
 
-    let universal_jar_name = format!("forge-{}-{}-{}.jar", mc_version, forge_version, mc_version);
-    let universal_dest = forge_lib_dir.join(&universal_jar_name);
+    let _ = app.emit("forge-progress", ForgeProgress {
+        status: "installing".to_string(),
+        progress: 0,
+        message: format!("Initializing minecraft-launcher-lib Forge installer for MC {}...", mc_version),
+    });
 
-    // 1. Unpack embedded Forge universal jar
-    std::fs::create_dir_all(&forge_lib_dir).ok();
-    let is_valid_universal = std::fs::metadata(&universal_dest)
-        .map(|m| m.len() > 1_000_000)
-        .unwrap_or(false);
+    let mut child = tokio::process::Command::new(py_bin)
+        .arg(&script_path)
+        .arg("install")
+        .arg("--mc-version")
+        .arg(&mc_version)
+        .arg("--minecraft-dir")
+        .arg(&minecraft_dir)
+        .arg("--forge-version")
+        .arg(&forge_version)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to launch Python forge_installer subprocess: {}", e))?;
 
-    if !is_valid_universal {
-        let _ = app.emit("forge-progress", ForgeProgress {
-            status: "extracting".to_string(),
-            progress: 30,
-            message: "Unpacking pre-bundled Forge core...".to_string(),
-        });
-        std::fs::write(&universal_dest, EMBEDDED_FORGE_UNIVERSAL)
-            .map_err(|e| format!("Failed to write pre-bundled Forge jar: {}", e))?;
-    }
+    let stdout = child.stdout.take().ok_or_else(|| "Failed to capture python stdout".to_string())?;
 
-    // 2. Unpack embedded Launchwrapper jar
-    let lw_dir = lib_dir.join("net").join("minecraft").join("launchwrapper").join("1.12");
-    std::fs::create_dir_all(&lw_dir).ok();
-    let lw_dest = lw_dir.join("launchwrapper-1.12.jar");
-    if !lw_dest.exists() || std::fs::metadata(&lw_dest).map(|m| m.len() < 10_000).unwrap_or(true) {
-        let _ = std::fs::write(&lw_dest, EMBEDDED_LAUNCHWRAPPER);
-    }
+    let app_clone = app.clone();
+    let mut reader = tokio::io::BufReader::new(stdout).lines();
 
-    // 3. Unpack embedded ASM jar
-    let asm_dir = lib_dir.join("org").join("ow2").join("asm").join("asm-all").join("5.0.3");
-    std::fs::create_dir_all(&asm_dir).ok();
-    let asm_dest = asm_dir.join("asm-all-5.0.3.jar");
-    if !asm_dest.exists() || std::fs::metadata(&asm_dest).map(|m| m.len() < 10_000).unwrap_or(true) {
-        let _ = std::fs::write(&asm_dest, EMBEDDED_ASM);
-    }
+    let mut last_progress_message = String::new();
+    let mut is_completed = false;
 
-    // 4. Download secondary required Forge libraries
-    let forge_deps = [
-        "com.typesafe.akka:akka-actor_2.11:2.3.3",
-        "com.typesafe:config:1.2.1",
-        "org.scala-lang:scala-actors-migration_2.11:1.1.0",
-        "org.scala-lang:scala-compiler:2.11.1",
-        "org.scala-lang.plugins:scala-continuations-library_2.11:1.0.2",
-        "org.scala-lang.plugins:scala-continuations-plugin_2.11.1:1.0.2",
-        "org.scala-lang:scala-library:2.11.1",
-        "org.scala-lang:scala-parser-combinators_2.11:1.0.1",
-        "org.scala-lang:scala-reflect:2.11.1",
-        "org.scala-lang:scala-swing_2.11:1.0.1",
-        "org.scala-lang:scala-xml_2.11:1.0.2",
-        "lzma:lzma:0.0.1",
-        "net.sf.jopt-simple:jopt-simple:4.6",
-        "java3d:vecmath:1.5.2",
-        "net.sf.trove4j:trove4j:3.0.3",
-    ];
-
-    let client = reqwest::Client::new();
-    let total_libs = forge_deps.len();
-
-    for (idx, dep_name) in forge_deps.iter().enumerate() {
-        if let Some((rel_path, maven_subpath)) = parse_maven_name(dep_name) {
-            let full_dest = lib_dir.join(&rel_path);
-            if !full_dest.exists() {
-                if let Some(parent) = full_dest.parent() {
-                    let _ = std::fs::create_dir_all(parent);
+    while let Ok(Some(line)) = reader.next_line().await {
+        let trimmed = line.trim();
+        if trimmed.starts_with('{') && trimmed.ends_with('}') {
+            if let Ok(payload) = serde_json::from_str::<ForgeProgress>(trimmed) {
+                if payload.status == "completed" {
+                    is_completed = true;
                 }
-
-                let _ = app.emit("forge-progress", ForgeProgress {
-                    status: "extracting".to_string(),
-                    progress: 50 + ((idx as f32 / total_libs as f32) * 40.0) as u32,
-                    message: format!("Syncing Forge library ({}/{})...", idx + 1, total_libs),
-                });
-
-                let urls = [
-                    format!("https://libraries.minecraft.net/{}", maven_subpath),
-                    format!("https://repo1.maven.org/maven2/{}", maven_subpath),
-                    format!("https://maven.minecraftforge.net/{}", maven_subpath),
-                ];
-
-                for download_url in urls.iter() {
-                    if let Ok(dl_res) = client.get(download_url).send().await {
-                        if dl_res.status().is_success() {
-                            if let Ok(dl_bytes) = dl_res.bytes().await {
-                                let _ = std::fs::write(&full_dest, &dl_bytes);
-                                break;
-                            }
-                        }
-                    }
-                }
+                last_progress_message = payload.message.clone();
+                let _ = app_clone.emit("forge-progress", payload);
             }
         }
     }
 
-    // 5. Emit completed event
-    let _ = app.emit("forge-progress", ForgeProgress {
-        status: "completed".to_string(),
-        progress: 100,
-        message: "Forge installation successfully verified!".to_string(),
-    });
+    let status = child.wait().await.map_err(|e| format!("Python subprocess error: {}", e))?;
 
-    Ok(())
+    if status.success() || is_completed {
+        let _ = app.emit("forge-progress", ForgeProgress {
+            status: "completed".to_string(),
+            progress: 100,
+            message: "Forge installation successfully verified!".to_string(),
+        });
+        Ok(())
+    } else {
+        let err_msg = if !last_progress_message.is_empty() {
+            last_progress_message
+        } else {
+            format!("Python forge installer exited with code {:?}", status.code())
+        };
+        let _ = app.emit("forge-progress", ForgeProgress {
+            status: "failed".to_string(),
+            progress: 0,
+            message: err_msg.clone(),
+        });
+        Err(err_msg)
+    }
 }
 
 

@@ -44,6 +44,8 @@ fn main() {
             installer::get_forge_version,
             installer::install_forge,
             auth::login_microsoft,
+            auth::initiate_device_code,
+            auth::poll_device_code_token,
             auth::login_refresh,
             auth::clear_secure_token,
             auth::load_secure_token,
