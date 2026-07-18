@@ -215,7 +215,7 @@ struct PythonForgeVersionResult {
 
 const EMBEDDED_FORGE_SCRIPT: &str = include_str!("../../scripts/forge_installer.py");
 
-fn get_python_executable() -> Result<String, String> {
+pub fn get_python_executable() -> Result<String, String> {
     let candidates = ["python3", "python", "py"];
     for candidate in candidates.iter() {
         if let Ok(output) = std::process::Command::new(candidate).arg("--version").output() {

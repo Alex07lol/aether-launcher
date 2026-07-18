@@ -311,6 +311,131 @@ pub async fn launch_game(
         detect_or_install_java(app.clone()).await?
     };
 
+    #[derive(serde::Deserialize)]
+    struct PythonCommandResult {
+        success: bool,
+        command: Option<Vec<String>>,
+    }
+
+    if is_forge {
+        let py_bin = crate::installer::get_python_executable().unwrap_or_else(|_| "python3".to_string());
+        let script_path = Path::new(&minecraft_dir).join("scripts").join("forge_installer.py");
+        let script = if script_path.exists() { script_path } else { PathBuf::from("scripts/forge_installer.py") };
+
+        let output = std::process::Command::new(&py_bin)
+            .arg(&script)
+            .arg("get-command")
+            .arg("--mc-version")
+            .arg(&version_id)
+            .arg("--minecraft-dir")
+            .arg(&minecraft_dir)
+            .arg("--username")
+            .arg(&username)
+            .arg("--uuid")
+            .arg(&uuid)
+            .arg("--access-token")
+            .arg(&access_token)
+            .arg("--java-path")
+            .arg(&resolved_java)
+            .output();
+
+        if let Ok(out) = output {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            if let Ok(res) = serde_json::from_str::<PythonCommandResult>(stdout.trim()) {
+                if res.success {
+                    if let Some(mut py_cmd) = res.command {
+                        if !py_cmd.is_empty() {
+                            let java_exe = py_cmd.remove(0);
+
+                            let min_ram = if min_memory > 0 { min_memory } else { 1024 };
+                            let max_ram = if max_memory > 0 { max_memory } else { 4096 };
+
+                            let mut final_args = vec![
+                                format!("-Xms{}M", min_ram),
+                                format!("-Xmx{}M", max_ram),
+                                "-XX:+UseG1GC".to_string(),
+                                "-XX:+UnlockExperimentalVMOptions".to_string(),
+                                "-XX:G1NewSizePercent=20".to_string(),
+                                "-XX:G1ReservePercent=20".to_string(),
+                                "-XX:MaxGCPauseMillis=50".to_string(),
+                                "-XX:G1HeapRegionSize=32M".to_string(),
+                                "-XX:+AlwaysPreTouch".to_string(),
+                                "-XX:+DisableExplicitGC".to_string(),
+                            ];
+
+                            let is_intel = enable_intel_perf || detect_intel_cpu();
+                            if is_intel {
+                                final_args.push("-XX:+UseFastAccessorMethods".to_string());
+                                final_args.push("-XX:+OptimizeStringConcat".to_string());
+                                final_args.push("-XX:+UseStringDeduplication".to_string());
+                            }
+
+                            if !custom_args.trim().is_empty() {
+                                for arg in custom_args.split_whitespace() {
+                                    final_args.push(arg.to_string());
+                                }
+                            }
+
+                            final_args.extend(py_cmd);
+
+                            if width > 0 {
+                                final_args.push("--width".to_string());
+                                final_args.push(width.to_string());
+                            }
+                            if height > 0 {
+                                final_args.push("--height".to_string());
+                                final_args.push(height.to_string());
+                            }
+                            if full_screen {
+                                final_args.push("--fullscreen".to_string());
+                            }
+
+                            println!("[Launcher] Invoking Minecraft via minecraft-launcher-lib: {} {:?}", java_exe, final_args);
+
+                            let mut child = Command::new(java_exe)
+                                .args(&final_args)
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::piped())
+                                .spawn()
+                                .map_err(|e| format!("Failed to spawn Minecraft subprocess: {}", e))?;
+
+                            let stdout = child.stdout.take().ok_or_else(|| "Failed to capture stdout stream".to_string())?;
+                            let stderr = child.stderr.take().ok_or_else(|| "Failed to capture stderr stream".to_string())?;
+
+                            let app_clone1 = app.clone();
+                            let app_clone2 = app.clone();
+
+                            tokio::spawn(async move {
+                                let mut reader = BufReader::new(stdout).lines();
+                                while let Ok(Some(line)) = reader.next_line().await {
+                                    let _ = app_clone1.emit("game-log", format!("[STDOUT] {}", line));
+                                }
+                            });
+
+                            tokio::spawn(async move {
+                                let mut reader = BufReader::new(stderr).lines();
+                                while let Ok(Some(line)) = reader.next_line().await {
+                                    let _ = app_clone2.emit("game-log", format!("[STDERR] {}", line));
+                                }
+                            });
+
+                            tokio::spawn(async move {
+                                let code = match child.wait().await {
+                                    Ok(status) => status.code().unwrap_or(0),
+                                    Err(_) => -1,
+                                };
+                                println!("[Launcher] Minecraft process exited with code: {}", code);
+                                let _ = app.emit("game-exit", code);
+                            });
+
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // 2. Classpath & Natives Scaffolding
     let base = Path::new(&minecraft_dir);
     let version_jar = base.join("versions").join(&version_id).join(format!("{}.jar", version_id));
