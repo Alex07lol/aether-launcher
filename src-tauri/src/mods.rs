@@ -34,16 +34,8 @@ struct AetherModMeta {
     updated_at: u64,
 }
 
-fn get_mods_dir(base_dir: &str, version_id: &str) -> PathBuf {
-    let base = Path::new(base_dir);
-    if version_id == "1.8.9" {
-        let version_mods = base.join("mods").join("1.8.9");
-        if !version_mods.exists() {
-            let _ = fs::create_dir_all(&version_mods);
-        }
-        return version_mods;
-    }
-    let mods_dir = base.join("mods");
+fn get_mods_dir(base_dir: &str, _version_id: &str) -> PathBuf {
+    let mods_dir = Path::new(base_dir).join("mods");
     if !mods_dir.exists() {
         let _ = fs::create_dir_all(&mods_dir);
     }
@@ -58,12 +50,14 @@ pub fn is_aether_mod(filename: &str) -> bool {
 #[tauri::command]
 pub async fn check_and_update_aether_mod(base_dir: String, _version_id: String) -> Result<String, String> {
     let base_mods_dir = Path::new(&base_dir).join("mods");
-    let v189_mods_dir = Path::new(&base_dir).join("mods").join("1.8.9");
-
     fs::create_dir_all(&base_mods_dir)
         .map_err(|e| format!("Failed to create mods dir: {}", e))?;
-    fs::create_dir_all(&v189_mods_dir)
-        .map_err(|e| format!("Failed to create 1.8.9 mods dir: {}", e))?;
+
+    // Remove redundant 1.8.9 subfolder to keep a single clean mods directory
+    let v189_mods_dir = base_mods_dir.join("1.8.9");
+    if v189_mods_dir.exists() {
+        let _ = fs::remove_dir_all(&v189_mods_dir);
+    }
 
     let meta_path = base_mods_dir.join(".aether_mod_meta.json");
 
@@ -121,11 +115,10 @@ pub async fn check_and_update_aether_mod(base_dir: String, _version_id: String) 
     };
 
     let main_mod_path = base_mods_dir.join(&asset_filename);
-    let v189_mod_path = v189_mods_dir.join(&asset_filename);
 
     let needs_download = match saved_meta {
         Some(ref meta) => {
-            meta.tag_name != target_tag || !main_mod_path.exists() || !v189_mod_path.exists()
+            meta.tag_name != target_tag || !main_mod_path.exists()
         }
         None => true,
     };
@@ -146,19 +139,13 @@ pub async fn check_and_update_aether_mod(base_dir: String, _version_id: String) 
 
         // Remove legacy standalone aether.jar if present to avoid duplicate mods
         let legacy_main = base_mods_dir.join("aether.jar");
-        let legacy_v189 = v189_mods_dir.join("aether.jar");
         if legacy_main.exists() && asset_filename != "aether.jar" {
             let _ = fs::remove_file(&legacy_main);
         }
-        if legacy_v189.exists() && asset_filename != "aether.jar" {
-            let _ = fs::remove_file(&legacy_v189);
-        }
 
-        // Save into root mods and 1.8.9 subfolder
+        // Save into single root mods directory
         fs::write(&main_mod_path, &file_bytes)
-            .map_err(|e| format!("Failed to write mod file to base mods directory: {}", e))?;
-        fs::write(&v189_mod_path, &file_bytes)
-            .map_err(|e| format!("Failed to write mod file to 1.8.9 mods directory: {}", e))?;
+            .map_err(|e| format!("Failed to write mod file to mods directory: {}", e))?;
 
         let new_meta = AetherModMeta {
             tag_name: target_tag.clone(),
