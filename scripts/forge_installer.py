@@ -13,15 +13,19 @@ try:
 except ImportError:
     import subprocess
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "minecraft-launcher-lib"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "--break-system-packages", "minecraft-launcher-lib"])
         import minecraft_launcher_lib
-    except Exception as e:
-        sys.stdout.write(json.dumps({
-            "status": "failed",
-            "message": f"minecraft-launcher-lib Python library is not installed and auto-installation failed: {e}",
-            "progress": 0
-        }) + "\n")
-        sys.exit(1)
+    except Exception:
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "minecraft-launcher-lib"])
+            import minecraft_launcher_lib
+        except Exception as e:
+            sys.stdout.write(json.dumps({
+                "status": "failed",
+                "message": f"minecraft-launcher-lib Python library is not installed and auto-installation failed: {e}",
+                "progress": 0
+            }) + "\n")
+            sys.exit(1)
 
 
 def get_forge_version(mc_version: str):

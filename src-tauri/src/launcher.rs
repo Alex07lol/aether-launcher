@@ -142,15 +142,15 @@ fn add_jars_recursive(dir: &Path, classpath: &mut String) {
             if path.is_dir() {
                 add_jars_recursive(&path, classpath);
             } else if path.extension().and_then(|s| s.to_str()) == Some("jar") {
-                // Skip native platform libraries in JVM classpath since they are loaded via library path
-                if path.to_string_lossy().contains("natives") {
+                let path_str = path.to_string_lossy().to_string();
+                if path_str.contains("natives") || classpath.contains(&path_str) {
                     continue;
                 }
                 #[cfg(target_os = "windows")]
                 classpath.push_str(";");
                 #[cfg(not(target_os = "windows"))]
                 classpath.push_str(":");
-                classpath.push_str(&path.to_string_lossy());
+                classpath.push_str(&path_str);
             }
         }
     }
@@ -323,6 +323,12 @@ pub async fn launch_game(
         add_jars_recursive(&lib_dir, &mut classpath);
     }
 
+    // Scan versions/ recursively for any installed Forge version JARs
+    let versions_dir = base.join("versions");
+    if versions_dir.exists() {
+        add_jars_recursive(&versions_dir, &mut classpath);
+    }
+
     // Dynamic extraction of LWJGL native binaries
     let natives_dir = base.join("versions").join(&version_id).join("natives");
     std::fs::create_dir_all(&natives_dir).ok();
@@ -360,8 +366,6 @@ pub async fn launch_game(
     if is_intel {
         println!("[Launcher] Intel CPU / Performance mode active. Injecting Intel JVM vectorization flags.");
         let intel_flags = [
-            "-XX:+UseVectorCmov",
-            "-XX:+UseVectorVectorize",
             "-XX:+UseFastAccessorMethods",
             "-XX:+OptimizeStringConcat",
             "-XX:+UseStringDeduplication",
@@ -387,7 +391,7 @@ pub async fn launch_game(
     if is_forge {
         args.push("net.minecraft.launchwrapper.Launch".to_string());
         args.push("--tweakClass".to_string());
-        args.push("net.minecraft.forge.fml.common.launcher.FMLTweaker".to_string());
+        args.push("net.minecraftforge.fml.common.launcher.FMLTweaker".to_string());
     } else {
         args.push("net.minecraft.client.main.Main".to_string());
     }
