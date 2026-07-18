@@ -390,6 +390,7 @@ pub async fn launch_game(
                                 final_args.push("--fullscreen".to_string());
                             }
 
+                            println!("Launching profile: {}", version_id);
                             println!("[Launcher] Invoking Minecraft via minecraft-launcher-lib: {} {:?}", java_exe, final_args);
 
                             let mut child = Command::new(java_exe)
