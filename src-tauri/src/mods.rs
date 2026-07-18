@@ -48,10 +48,19 @@ pub fn is_aether_mod(filename: &str) -> bool {
 }
 
 #[tauri::command]
-pub async fn check_and_update_aether_mod(base_dir: String, _version_id: String) -> Result<String, String> {
+pub async fn check_and_update_aether_mod(base_dir: String, _version_id: String, force: Option<bool>) -> Result<String, String> {
     let base_mods_dir = Path::new(&base_dir).join("mods");
     fs::create_dir_all(&base_mods_dir)
         .map_err(|e| format!("Failed to create mods dir: {}", e))?;
+
+    let disabled_path = base_mods_dir.join(".aether_mod_disabled");
+    let is_forced = force.unwrap_or(false);
+
+    if is_forced && disabled_path.exists() {
+        let _ = fs::remove_file(&disabled_path);
+    } else if disabled_path.exists() {
+        return Ok("Aether mod is disabled by user.".to_string());
+    }
 
     // Remove redundant 1.8.9 subfolder to keep a single clean mods directory
     let v189_mods_dir = base_mods_dir.join("1.8.9");
@@ -185,7 +194,7 @@ pub fn list_mods(base_dir: String, version_id: String) -> Result<Vec<ModEntry>, 
             let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
             let metadata = fs::metadata(&path).ok();
             let size = metadata.map(|m| m.len()).unwrap_or(0);
-            let is_protected = is_aether_mod(&filename);
+            let is_protected = false; // Aether mod is removable by user
 
             mods.push(ModEntry {
                 filename,
@@ -201,12 +210,18 @@ pub fn list_mods(base_dir: String, version_id: String) -> Result<Vec<ModEntry>, 
 
 #[tauri::command]
 pub fn remove_mod(base_dir: String, version_id: String, filename: String) -> Result<(), String> {
-    if is_aether_mod(&filename) {
-        return Err("This mod is required by Aether Launcher for 1.8.9 and cannot be deleted by user.".to_string());
-    }
-
     let mods_dir = get_mods_dir(&base_dir, &version_id);
     let target_file = mods_dir.join(&filename);
+
+    if is_aether_mod(&filename) {
+        let base_mods_dir = Path::new(&base_dir).join("mods");
+        let disabled_path = base_mods_dir.join(".aether_mod_disabled");
+        let meta_path = base_mods_dir.join(".aether_mod_meta.json");
+        let _ = fs::write(&disabled_path, "disabled");
+        if meta_path.exists() {
+            let _ = fs::remove_file(&meta_path);
+        }
+    }
 
     if target_file.exists() {
         fs::remove_file(&target_file)
@@ -228,6 +243,14 @@ pub fn install_mod_bytes(
     filename: String,
     bytes: Vec<u8>,
 ) -> Result<(), String> {
+    if is_aether_mod(&filename) {
+        let base_mods_dir = Path::new(&base_dir).join("mods");
+        let disabled_path = base_mods_dir.join(".aether_mod_disabled");
+        if disabled_path.exists() {
+            let _ = fs::remove_file(&disabled_path);
+        }
+    }
+
     let mods_dir = get_mods_dir(&base_dir, &version_id);
     fs::create_dir_all(&mods_dir)
         .map_err(|e| format!("Failed to create mods directory: {}", e))?;
