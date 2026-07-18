@@ -106,6 +106,7 @@ def install_forge(mc_version: str, minecraft_dir: str, forge_version: str = None
             install_kwargs["java"] = java_path
 
         installed_version_id = forge.install(**install_kwargs)
+        sys.stderr.write(f"[ForgeInstaller] Installed version: {installed_version_id}\n")
 
         sys.stdout.write(json.dumps({
             "status": "completed",
@@ -141,7 +142,12 @@ def get_launch_command(mc_version: str, minecraft_dir: str, username: str, uuid:
                         installed = d
                         break
 
-        version_id = installed if installed else mc_version
+        if installed is None:
+            raise RuntimeError(f"Forge {mc_version} is not installed.")
+
+        version_id = installed
+        sys.stderr.write(f"[ForgeInstaller] Launching profile: {version_id}\n")
+
         options = {
             "username": username,
             "uuid": uuid if uuid else "00000000-0000-0000-0000-000000000000",
